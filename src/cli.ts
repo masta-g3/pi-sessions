@@ -7,15 +7,19 @@ import { extensionPath } from "./core/extension-path.js";
 import { sessionsStateDir, registryPath } from "./core/paths.js";
 import { createSessionRecord, loadRegistry, saveRegistry } from "./core/registry.js";
 import { hasTmux, newSession, sessionExists, killSession } from "./core/tmux.js";
+import { dashboardEnv, openDashboard } from "./app/dashboard.js";
 import { runTui } from "./app/run-tui.js";
 import { deleteManagedSession, resolveSession } from "./app/delete-session.js";
 import { startMcpPool } from "./mcp/pool-daemon.js";
 
-const command = process.argv[2] ?? "tui";
+const command = process.argv[2] ?? "dashboard";
 const args = process.argv.slice(3);
 
 async function main() {
   switch (command) {
+    case "dashboard":
+      await dashboard();
+      return;
     case "tui":
       await runTui();
       return;
@@ -60,7 +64,8 @@ function printHelp() {
   console.log(`pi-sessions
 
 Usage:
-  pi-sessions
+  pi-sessions              open dashboard tmux session
+  pi-sessions tui          run TUI directly
   pi-sessions list
   pi-sessions add <cwd> [-t title] [-g group]
   pi-sessions start <session-id>
@@ -71,6 +76,16 @@ Usage:
   pi-sessions mcp-pool
   pi-sessions doctor
 `);
+}
+
+async function dashboard() {
+  if (!(await hasTmux())) throw new Error("tmux is required for the dashboard session; use `pi-sessions tui` to run directly");
+  await openDashboard({
+    cwd: process.cwd(),
+    command: "pi-sessions tui",
+    insideTmux: Boolean(process.env.TMUX),
+    env: dashboardEnv(),
+  });
 }
 
 async function list() {

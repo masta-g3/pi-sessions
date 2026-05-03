@@ -14,7 +14,14 @@ type PiContext = {
   };
 };
 
+const EXTENSION_KEY = Symbol.for("pi-sessions.extension.loaded");
+type PiSessionsGlobal = typeof globalThis & { [EXTENSION_KEY]?: true };
+
 export default function piSessionsExtension(pi: ExtensionAPI) {
+  const globalState = globalThis as PiSessionsGlobal;
+  if (globalState[EXTENSION_KEY]) return;
+  globalState[EXTENSION_KEY] = true;
+
   let currentState: Heartbeat["state"] = "starting";
   let stateSince = Date.now();
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -50,8 +57,12 @@ export default function piSessionsExtension(pi: ExtensionAPI) {
   pi.on("agent_start", async (_event, ctx) => heartbeat("running", ctx as PiContext));
   pi.on("agent_end", async (_event, ctx) => heartbeat("waiting", ctx as PiContext));
   pi.on("session_shutdown", async (_event, ctx) => {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    await mcpCleanup?.();
-    await heartbeat("shutdown", ctx as PiContext);
+    try {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      await mcpCleanup?.();
+      await heartbeat("shutdown", ctx as PiContext);
+    } finally {
+      delete globalState[EXTENSION_KEY];
+    }
   });
 }
