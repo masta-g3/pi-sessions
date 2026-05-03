@@ -1,0 +1,41 @@
+{
+  "name": "pi-command-center",
+  "version": "1.0.0",
+  "description": "Minimal Pi-native command center for tmux-managed Pi sessions",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/link-cli.mjs",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:unit": "npm test"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "tmux"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.72.1",
+    "@mariozechner/pi-tui": "^0.72.1",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  },
+  "bin": {
+    "pi-center": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "dist/src/extension/index.js"
+    ]
+  },
+  "types": "dist/src/index.d.ts"
+}
