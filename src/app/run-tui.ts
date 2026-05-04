@@ -9,6 +9,7 @@ import { listSkillPool } from "../skills/catalog.js";
 import { loadMcpCatalog, loadProjectMcpState, setProjectMcpServers } from "../mcp/config.js";
 import { restoreSwitchReturnBinding, switchClientWithReturn } from "../core/tmux.js";
 import { deleteManagedSession } from "./delete-session.js";
+import { addManagedSession, forkManagedSession, restartManagedSession } from "./session-commands.js";
 
 export async function runTui(): Promise<void> {
   const theme = await loadSessionsTheme({ cwd: process.cwd() });
@@ -29,6 +30,24 @@ export async function runTui(): Promise<void> {
     void restoreSwitchReturnBinding({ onlyOwnerPid: process.pid }).catch(() => {});
     tui.stop();
   };
+  let mutationQueue = Promise.resolve();
+  const mutateRegistry = (action: () => Promise<void>) => {
+    const run = async () => {
+      const loop = stopLoop;
+      stopLoop = undefined;
+      try {
+        await loop?.stop();
+        await action();
+        await controller.refresh();
+        tui.requestRender();
+      } finally {
+        if (!stopped) stopLoop = startRefreshLoop(controller, tui);
+      }
+    };
+    const result = mutationQueue.then(run, run);
+    mutationQueue = result.catch(() => {});
+    return result;
+  };
   const view = new SessionsView(controller, stop, {
     attachOutsideTmux(tmuxSession) {
       stop();
@@ -38,25 +57,31 @@ export async function runTui(): Promise<void> {
       return switchClientWithReturn({ targetSession: tmuxSession });
     },
     restart(sessionId) {
-      spawn(process.execPath, [process.argv[1] ?? "", "restart", sessionId], { stdio: "inherit" });
+      return mutateRegistry(() => restartManagedSession(sessionId));
     },
-    async deleteSession(sessionId) {
-      const loop = stopLoop;
-      stopLoop = undefined;
-      try {
-        await loop?.stop();
+    deleteSession(sessionId) {
+      return mutateRegistry(async () => {
         const deleted = await deleteManagedSession(sessionId);
         controller.removeSession(deleted.id);
-        tui.requestRender();
-      } finally {
-        if (!stopped) stopLoop = startRefreshLoop(controller, tui);
-      }
+      });
     },
     createSession(input) {
-      spawn(process.execPath, [process.argv[1] ?? "", "add", input.cwd, "-g", input.group, "-t", input.title], { stdio: "inherit" });
+      return mutateRegistry(async () => { await addManagedSession(input); });
     },
     forkSession(sourceSessionId, input) {
-      spawn(process.execPath, [process.argv[1] ?? "", "fork", sourceSessionId, "-g", input.group, "-t", input.title], { stdio: "inherit" });
+      return mutateRegistry(async () => { await forkManagedSession(sourceSessionId, input); });
+    },
+    changeGroup(sessionId, group) {
+      return mutateRegistry(() => controller.moveSessionToGroup(sessionId, group));
+    },
+    renameSession(sessionId, title) {
+      return mutateRegistry(() => controller.renameSession(sessionId, title));
+    },
+    renameGroup(from, to) {
+      return mutateRegistry(() => controller.renameGroup(from, to));
+    },
+    acknowledge() {
+      return mutateRegistry(() => controller.acknowledgeSelected());
     },
     newFormContext() {
       const sessions = controller.snapshot().registry.sessions;

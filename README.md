@@ -60,9 +60,11 @@ Running `pi-sessions` uses one stable tmux session named `pi-sessions-dashboard`
 
 The dashboard runs `pi-sessions tui` inside tmux so it does not recursively create dashboards.
 
-## TUI attach behavior
+## TUI behavior
 
 When the dashboard is running inside tmux, pressing `enter` on a managed session switches the current tmux client to that session and shows the equivalent `tmux switch-client -t <session>` command. Press `Ctrl+Q` from a managed `pi-sessions-*` session to return to the sessions dashboard. Outside tmux direct TUI mode, attach uses normal `tmux attach-session`; return with tmux's standard detach keys.
+
+Groups are implicit flat labels. Use `n` to create a session with any group name, `g` on a selected session to move it to an existing or new group, and `G` to rename the selected session's current group for every session in that group. Use `e` to rename the selected session.
 
 ## Pi package
 

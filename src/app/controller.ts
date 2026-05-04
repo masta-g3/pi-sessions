@@ -1,4 +1,4 @@
-import { loadRegistry, saveRegistry } from "../core/registry.js";
+import { loadRegistry, normalizeGroup, renameGroup as renameRegistryGroup, saveRegistry } from "../core/registry.js";
 import { applyComputedStatus, computeStatus, markAcknowledged, readHeartbeat } from "../core/status.js";
 import { capturePane, sessionExists } from "../core/tmux.js";
 import type { SessionsRegistry, ManagedSession } from "../core/types.js";
@@ -69,14 +69,38 @@ export class SessionsController {
     this.selectedId = keepSelection(visibleSessions(this.registry.sessions, this.filter), this.selectedId);
   }
 
-  acknowledgeSelected(now = Date.now()): void {
+  async acknowledgeSelected(now = Date.now()): Promise<void> {
     const selected = this.selected();
     if (!selected) return;
     this.registry = {
       ...this.registry,
       sessions: this.registry.sessions.map((session) => session.id === selected.id ? markAcknowledged(session, now) : session),
     };
-    void saveRegistry(this.registry);
+    await saveRegistry(this.registry);
+  }
+
+  async moveSessionToGroup(id: string, group: string, now = Date.now()): Promise<void> {
+    const normalized = normalizeGroup(group);
+    this.registry = {
+      ...this.registry,
+      sessions: this.registry.sessions.map((session) => session.id === id ? { ...session, group: normalized, updatedAt: now } : session),
+    };
+    await saveRegistry(this.registry);
+  }
+
+  async renameSession(id: string, title: string, now = Date.now()): Promise<void> {
+    const trimmed = title.trim();
+    if (!trimmed) throw new Error("title is required");
+    this.registry = {
+      ...this.registry,
+      sessions: this.registry.sessions.map((session) => session.id === id ? { ...session, title: trimmed, updatedAt: now } : session),
+    };
+    await saveRegistry(this.registry);
+  }
+
+  async renameGroup(from: string, to: string): Promise<void> {
+    this.registry = renameRegistryGroup(this.registry, from, to);
+    await saveRegistry(this.registry);
   }
 
   removeSession(id: string): void {

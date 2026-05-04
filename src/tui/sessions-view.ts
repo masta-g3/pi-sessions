@@ -16,10 +16,14 @@ export interface SessionDialogInput {
 export interface SessionsViewActions {
   attachOutsideTmux?: (tmuxSession: string) => void;
   switchInsideTmux?: (tmuxSession: string) => void | Promise<void>;
-  restart?: (sessionId: string) => void;
+  restart?: (sessionId: string) => unknown;
   deleteSession?: (sessionId: string) => void | Promise<void>;
-  createSession?: (input: Required<SessionDialogInput>) => void;
-  forkSession?: (sourceSessionId: string, input: Omit<SessionDialogInput, "cwd">) => void;
+  createSession?: (input: Required<SessionDialogInput>) => unknown;
+  forkSession?: (sourceSessionId: string, input: Omit<SessionDialogInput, "cwd">) => unknown;
+  changeGroup?: (sessionId: string, group: string) => unknown;
+  renameSession?: (sessionId: string, title: string) => unknown;
+  renameGroup?: (from: string, to: string) => unknown;
+  acknowledge?: () => unknown;
   newFormContext?: () => NewFormContext;
   skills?: () => PickerItem[];
   applySkills?: (items: PickerItem[]) => void | Promise<void>;
@@ -30,7 +34,7 @@ export interface SessionsViewActions {
 }
 
 export class SessionsView implements Component {
-  private mode: "normal" | "filter" | "help" | "new" | "fork" | "skills" | "mcp" | "delete" = "normal";
+  private mode: "normal" | "filter" | "help" | "new" | "fork" | "group" | "rename" | "groupRename" | "skills" | "mcp" | "delete" = "normal";
   private filterDraft = "";
   private dialogDraft = "";
   private newForm: NewFormState | undefined;
@@ -38,6 +42,8 @@ export class SessionsView implements Component {
   private message: string | undefined;
   private pendingRestart: { sessionId: string; expiresAt: number } | undefined;
   private deleteTargetId: string | undefined;
+  private groupRenameFrom: string | undefined;
+  private busy = false;
   private deleting = false;
 
   constructor(private controller: SessionsController, private stop: () => void, private actions: SessionsViewActions = {}, private theme?: SessionsTheme) {}
@@ -58,6 +64,16 @@ export class SessionsView implements Component {
       return;
     }
 
+    if (this.mode === "group") {
+      this.handleGroupInput(data);
+      return;
+    }
+
+    if (this.mode === "rename" || this.mode === "groupRename") {
+      this.handleRenameInput(data);
+      return;
+    }
+
     if (this.mode === "skills" || this.mode === "mcp") {
       this.handlePickerInput(data);
       return;
@@ -71,6 +87,11 @@ export class SessionsView implements Component {
     if (this.mode === "help") {
       if (data === "q") this.stop();
       else if (matchesKey(data, Key.escape) || data === "?") this.mode = "normal";
+      return;
+    }
+
+    if (this.busy) {
+      if (data === "q") this.stop();
       return;
     }
 
@@ -93,13 +114,16 @@ export class SessionsView implements Component {
     else if (matchesKey(data, Key.slash)) this.startFilter();
     else if (data === "n") this.startNewDialog();
     else if (data === "f") this.startForkDialog();
+    else if (data === "g") this.startGroupDialog();
+    else if (data === "e") this.startRenameSessionDialog();
+    else if (data === "G") this.startRenameGroupDialog();
     else if (data === "r") this.restartSelected();
     else if (data === "d") this.startDeleteDialog();
     else if (data === "s") this.startPicker("skills");
     else if (data === "m") this.startPicker("mcp");
     else if (data === "a") {
       this.clearPendingRestart();
-      this.controller.acknowledgeSelected();
+      this.runAction(() => this.actions.acknowledge?.() ?? this.controller.acknowledgeSelected(), "marking read...");
     }
     else if (data === "?") {
       this.clearPendingRestart();
@@ -114,6 +138,9 @@ export class SessionsView implements Component {
     if ((this.mode === "skills" || this.mode === "mcp") && this.picker) return renderTwoColumnPicker(this.picker, width, this.theme);
     if (this.mode === "new" && this.newForm) return this.renderNewForm(width);
     if (this.mode === "fork") return this.renderSessionDialog(width);
+    if (this.mode === "group") return this.renderGroupDialog(width);
+    if (this.mode === "rename") return this.renderRenameSessionDialog(width);
+    if (this.mode === "groupRename") return this.renderRenameGroupDialog(width);
     if (this.mode === "delete") return this.renderDeleteDialog(width);
     if (this.pendingRestart && this.message?.startsWith("press r again")) return this.renderRestartDialog(width);
     const snapshot = this.controller.snapshot();
@@ -153,6 +180,34 @@ export class SessionsView implements Component {
     this.clearPendingRestart();
     this.mode = "fork";
     this.dialogDraft = `${selected.group}|${selected.title} fork`;
+    this.message = undefined;
+  }
+
+  private startGroupDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    this.clearPendingRestart();
+    this.mode = "group";
+    this.dialogDraft = selected.group;
+    this.message = undefined;
+  }
+
+  private startRenameSessionDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    this.clearPendingRestart();
+    this.mode = "rename";
+    this.dialogDraft = selected.title;
+    this.message = undefined;
+  }
+
+  private startRenameGroupDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    this.clearPendingRestart();
+    this.mode = "groupRename";
+    this.dialogDraft = selected.group;
+    this.groupRenameFrom = selected.group;
     this.message = undefined;
   }
 
@@ -203,7 +258,7 @@ export class SessionsView implements Component {
     if (this.pendingRestart?.sessionId === selected.id && this.pendingRestart.expiresAt > now) {
       this.pendingRestart = undefined;
       this.message = undefined;
-      this.actions.restart?.(selected.id);
+      this.runAction(() => this.actions.restart?.(selected.id), "restarting session...");
       return;
     }
     this.pendingRestart = { sessionId: selected.id, expiresAt: now + 2_000 };
@@ -322,6 +377,52 @@ export class SessionsView implements Component {
     }
   }
 
+  private handleGroupInput(data: string) {
+    if (matchesKey(data, Key.escape)) {
+      this.mode = "normal";
+      this.dialogDraft = "";
+      this.message = undefined;
+      return;
+    }
+    if (matchesKey(data, Key.enter) || matchesKey(data, Key.return) || data === "\r") {
+      this.submitGroupDialog();
+      return;
+    }
+    if (matchesKey(data, Key.backspace)) {
+      this.message = undefined;
+      this.dialogDraft = this.dialogDraft.slice(0, -1);
+      return;
+    }
+    if (isPrintable(data)) {
+      this.message = undefined;
+      this.dialogDraft += data;
+    }
+  }
+
+  private handleRenameInput(data: string) {
+    if (matchesKey(data, Key.escape)) {
+      this.mode = "normal";
+      this.dialogDraft = "";
+      this.groupRenameFrom = undefined;
+      this.message = undefined;
+      return;
+    }
+    if (matchesKey(data, Key.enter) || matchesKey(data, Key.return) || data === "\r") {
+      if (this.mode === "rename") this.submitRenameSessionDialog();
+      else this.submitRenameGroupDialog();
+      return;
+    }
+    if (matchesKey(data, Key.backspace)) {
+      this.message = undefined;
+      this.dialogDraft = this.dialogDraft.slice(0, -1);
+      return;
+    }
+    if (isPrintable(data)) {
+      this.message = undefined;
+      this.dialogDraft += data;
+    }
+  }
+
   private handleNewFormInput(data: string) {
     if (!this.newForm) {
       this.mode = "normal";
@@ -337,7 +438,7 @@ export class SessionsView implements Component {
       const result = validateNewForm(this.newForm);
       this.newForm = result.state;
       if (!result.ok) return;
-      this.actions.createSession?.(submission(result.state));
+      this.runAction(() => this.actions.createSession?.(submission(result.state)), "creating session...");
       this.mode = "normal";
       this.newForm = undefined;
       return;
@@ -373,9 +474,70 @@ export class SessionsView implements Component {
       this.message = "Required: group and title";
       return;
     }
-    this.actions.forkSession?.(selected.id, { group: group.trim(), title: title.trim() });
+    this.runAction(() => this.actions.forkSession?.(selected.id, { group: group.trim(), title: title.trim() }), "forking session...");
     this.mode = "normal";
     this.dialogDraft = "";
+  }
+
+  private submitGroupDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    const group = this.dialogDraft.trim();
+    if (!group) {
+      this.message = "group is required";
+      return;
+    }
+    this.runAction(() => this.actions.changeGroup?.(selected.id, group) ?? this.controller.moveSessionToGroup(selected.id, group), "moving session...");
+    this.mode = "normal";
+    this.dialogDraft = "";
+  }
+
+  private submitRenameSessionDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    const title = this.dialogDraft.trim();
+    if (!title) {
+      this.message = "title is required";
+      return;
+    }
+    this.runAction(() => this.actions.renameSession?.(selected.id, title) ?? this.controller.renameSession(selected.id, title), "renaming session...");
+    this.mode = "normal";
+    this.dialogDraft = "";
+  }
+
+  private submitRenameGroupDialog() {
+    const from = this.groupRenameFrom;
+    if (!from) {
+      this.mode = "normal";
+      return;
+    }
+    const to = this.dialogDraft.trim();
+    if (!to) {
+      this.message = "group is required";
+      return;
+    }
+    this.runAction(() => this.actions.renameGroup?.(from, to) ?? this.controller.renameGroup(from, to), "renaming group...");
+    this.mode = "normal";
+    this.groupRenameFrom = undefined;
+    this.dialogDraft = "";
+  }
+
+  private runAction(action: () => unknown, pendingMessage: string): void {
+    try {
+      const result = action();
+      if (!isPromise(result)) return;
+      this.busy = true;
+      this.message = pendingMessage;
+      void result.then(() => {
+        this.busy = false;
+        if (this.message === pendingMessage) this.message = undefined;
+      }).catch((error: unknown) => {
+        this.busy = false;
+        this.message = errorMessage(error);
+      });
+    } catch (error) {
+      this.message = errorMessage(error);
+    }
   }
 
   private renderRestartDialog(width: number): string[] {
@@ -420,6 +582,39 @@ export class SessionsView implements Component {
       `title  ${title}`,
       "",
       this.message ?? "esc cancel",
+    ], width, this.theme);
+  }
+
+  private renderGroupDialog(width: number): string[] {
+    const selected = this.controller.selected();
+    return renderDialog("Move to group", [
+      selected ? `target  ${selected.title}` : "target  none",
+      "",
+      `group  ${this.dialogDraft}`,
+      "",
+      this.message ?? "type existing or new group · enter move · esc cancel",
+    ], width, this.theme);
+  }
+
+  private renderRenameSessionDialog(width: number): string[] {
+    const selected = this.controller.selected();
+    return renderDialog("Rename session", [
+      selected ? `target  ${selected.title}` : "target  none",
+      "",
+      `title  ${this.dialogDraft}`,
+      "",
+      this.message ?? "enter rename · esc cancel",
+    ], width, this.theme);
+  }
+
+  private renderRenameGroupDialog(width: number): string[] {
+    return renderDialog("Rename group", [
+      `from   ${this.groupRenameFrom ?? ""}`,
+      `to     ${this.dialogDraft}`,
+      "",
+      "Renames this group label for all sessions in the group.",
+      "",
+      this.message ?? "enter rename · esc cancel",
     ], width, this.theme);
   }
 
@@ -473,7 +668,7 @@ function renderHelp(width: number): string[] {
     "pi sessions help",
     "",
     "navigation   ↑↓/j/k move   / filter",
-    "sessions     enter attach   n new   f fork   r restart   d delete   a mark read",
+    "sessions     enter attach   n new   e rename   f fork   g/G group   r restart   d delete   a mark read",
     "config       s skills       m mcp",
     "system       q quit         esc cancel",
   ];
