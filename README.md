@@ -8,34 +8,37 @@ Minimal Pi-native session manager for tmux-managed Pi sessions.
 - The standalone TUI shows managed sessions, status, preview metadata, filters, and simple actions.
 - A tiny Pi extension writes heartbeats and registers enabled MCP tools.
 
-## Install for development
+## Install
+
+`pi-sessions` is not published to npm yet. Install from a local clone for now:
 
 ```bash
-cd /Users/manager/Code/agents/pi-command-center
+git clone https://github.com/masta-g3/pi-sessions.git
+cd pi-sessions
 npm install
-npm test
 npm run build
-```
-
-## Local dogfood install
-
-Use both installs while testing locally:
-
-```bash
 npm link
-pi install /Users/manager/Code/agents/pi-command-center
+pi install "$PWD"
 pi-sessions doctor
 pi-sessions
 ```
 
 - `npm link` provides the `pi-sessions` shell command.
-- `pi install ...` lets Pi discover the package extension through `package.json#pi.extensions`.
+- `pi install "$PWD"` lets Pi discover the package extension through `package.json#pi.extensions`.
+- Re-run `npm run build` after pulling updates.
 
-Uninstall local dogfood setup:
+Uninstall local setup:
 
 ```bash
-pi remove /Users/manager/Code/agents/pi-command-center
+pi remove /path/to/pi-sessions
 npm unlink -g pi-sessions
+```
+
+## Development
+
+```bash
+npm test
+npm run package:check
 ```
 
 ## CLI

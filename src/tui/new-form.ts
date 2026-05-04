@@ -93,7 +93,8 @@ export function deleteWord(state: NewFormState): NewFormState {
 export function createNewForm(ctx: NewFormContext): NewFormState {
   const cwd = ctx.cwd;
   const suggestions = uniqueWithFirst(cwd, ctx.knownCwds ?? []);
-  const group = ctx.group?.trim() || basename(cwd) || "default";
+  const contextGroup = ctx.group?.trim();
+  const group = contextGroup || basename(cwd) || "default";
   const title = ctx.titleGenerator?.() ?? randomSessionTitle();
   return {
     ...createForm<FieldKey, Field>([
@@ -106,7 +107,7 @@ export function createNewForm(ctx: NewFormContext): NewFormState {
         cycleIndex: 0,
         truncate: "start",
       },
-      { key: "group", label: "group", value: group, hint: "defaults to cwd basename" },
+      { key: "group", label: "group", value: group, hint: contextGroup ? "selected session group" : "defaults to cwd basename" },
       { key: "title", label: "title", value: title, hint: "random two-word slug" },
     ], ORDER[0]),
     order: ORDER,
@@ -206,6 +207,6 @@ function uniqueWithFirst(first: string, items: string[]): string[] {
 }
 
 function cwdHint(suggestionCount: number): string {
-  if (suggestionCount > 1) return `current dir · ctrl-n cycles ${suggestionCount} known cwds`;
-  return "current dir";
+  if (suggestionCount > 1) return `default cwd · ctrl-n cycles ${suggestionCount} known cwds`;
+  return "default cwd";
 }
