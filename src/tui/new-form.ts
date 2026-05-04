@@ -33,6 +33,7 @@ export interface NewFormState extends FormState<FieldKey, Field> {
 
 export interface NewFormContext {
   cwd: string;
+  group?: string;
   knownCwds?: string[];
   titleGenerator?: () => string;
 }
@@ -92,7 +93,7 @@ export function deleteWord(state: NewFormState): NewFormState {
 export function createNewForm(ctx: NewFormContext): NewFormState {
   const cwd = ctx.cwd;
   const suggestions = uniqueWithFirst(cwd, ctx.knownCwds ?? []);
-  const group = basename(cwd) || "default";
+  const group = ctx.group?.trim() || basename(cwd) || "default";
   const title = ctx.titleGenerator?.() ?? randomSessionTitle();
   return {
     ...createForm<FieldKey, Field>([

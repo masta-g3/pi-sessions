@@ -3,6 +3,7 @@ import { ProcessTerminal, TUI } from "@mariozechner/pi-tui";
 import { SessionsController } from "./controller.js";
 import { startRefreshLoop, type RefreshLoopHandle } from "./refresh-loop.js";
 import { SessionsView } from "../tui/sessions-view.js";
+import type { NewFormContext } from "../tui/new-form.js";
 import { loadSessionsTheme } from "../tui/theme.js";
 import { loadProjectSkillsState, setProjectSkills } from "../skills/attach.js";
 import { listSkillPool } from "../skills/catalog.js";
@@ -11,6 +12,12 @@ import { configureManagedSessionStatusBar, restoreSwitchReturnBinding, switchCli
 import { DASHBOARD_SESSION, dashboardEnv } from "./dashboard.js";
 import { deleteManagedSession } from "./delete-session.js";
 import { addManagedSession, forkManagedSession, restartManagedSession } from "./session-commands.js";
+import type { ManagedSession } from "../core/types.js";
+
+export function buildNewFormContext(input: { cwd: string; sessions: ManagedSession[]; selected?: ManagedSession }): NewFormContext {
+  const knownCwds = Array.from(new Set(input.sessions.map((session) => session.cwd))).sort();
+  return { cwd: input.selected?.cwd ?? input.cwd, group: input.selected?.group, knownCwds };
+}
 
 export async function runTui(): Promise<void> {
   const theme = await loadSessionsTheme({ cwd: process.cwd() });
@@ -93,9 +100,11 @@ export async function runTui(): Promise<void> {
       return mutateRegistry(() => controller.acknowledgeSelected());
     },
     newFormContext() {
-      const sessions = controller.snapshot().registry.sessions;
-      const knownCwds = Array.from(new Set(sessions.map((session) => session.cwd))).sort();
-      return { cwd: process.cwd(), knownCwds };
+      return buildNewFormContext({
+        cwd: process.cwd(),
+        sessions: controller.snapshot().registry.sessions,
+        selected: controller.selected(),
+      });
     },
     skills() {
       return skillPool.map((skill) => ({ name: skill.name, enabled: enabledSkillNames.has(skill.name) }));

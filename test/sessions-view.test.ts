@@ -221,6 +221,32 @@ test("new form uses a random two-word title when generator is absent", () => {
   assert.notEqual(created?.title, "api");
 });
 
+test("new form can default to selected session cwd and group", () => {
+  let created: { cwd: string; group: string; title: string } | undefined;
+  const controller = new SessionsController({
+    version: 1,
+    sessions: [{ ...session("api", "api"), cwd: "/repo/api", group: "backend" }],
+  });
+  const view = new SessionsView(controller, () => {}, {
+    createSession: (input) => { created = input; },
+    newFormContext: () => {
+      const selected = controller.selected();
+      return {
+        cwd: selected?.cwd ?? "/dashboard",
+        group: selected?.group,
+        knownCwds: ["/dashboard", "/repo/api"],
+        titleGenerator: () => "black-aleph",
+      };
+    },
+  });
+  view.handleInput("n");
+  const rendered = view.render(120).join("\n");
+  assert.match(rendered, /\/repo\/api/);
+  assert.match(rendered, /backend/);
+  view.handleInput("\r");
+  assert.deepEqual(created, { cwd: "/repo/api", group: "backend", title: "black-aleph" });
+});
+
 test("new form per-field validation focuses first invalid field on enter", () => {
   const view = new SessionsView(new SessionsController(), () => {}, {
     newFormContext: () => ({ cwd: "/tmp/api" }),
