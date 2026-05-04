@@ -2,11 +2,17 @@
 
 Minimal Pi-native session manager for tmux-managed Pi sessions.
 
+`pi-sessions` is a minimal Pi-native port of [Agent Deck](https://github.com/asheshgoplani/agent-deck), pared down to Pi as the only agent runtime and tmux as the process substrate.
+
 - Pi is the only agent runtime.
 - tmux owns long-running sessions.
 - `pi-sessions` opens a stable tmux dashboard session for the control center.
 - The standalone TUI shows managed sessions, status, preview metadata, filters, and simple actions.
 - A tiny Pi extension writes heartbeats and registers enabled MCP tools.
+
+## Acknowledgements
+
+Thanks to [Ashesh Goplani](https://github.com/asheshgoplani) for [Agent Deck](https://github.com/asheshgoplani/agent-deck). This project ports its core session-dashboard idea into a smaller Pi-native extension and intentionally removes broader multi-agent/runtime scope. See `LICENSE` for the Agent Deck MIT notice.
 
 ## Install
 
@@ -85,7 +91,7 @@ The package declares its extension in `package.json`:
 Local install:
 
 ```bash
-pi install /Users/manager/Code/agents/pi-command-center
+pi install "$PWD"
 ```
 
 Package smoke before publishing:

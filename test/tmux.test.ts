@@ -27,12 +27,12 @@ function fakeTmux(handler: (call: Call) => CommandResult | Promise<CommandResult
 test("configureManagedSessionStatusBar sets a Pi-native right footer", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureManagedSessionStatusBar({ name: "pi-sessions-api", title: "package", cwd: "/repo/pi-command-center" }, exec);
+  await configureManagedSessionStatusBar({ name: "pi-sessions-api", title: "package", cwd: "/repo/example-service" }, exec);
 
   assert.deepEqual(exec.calls.map((call) => call.args), [[
     "set-option", "-t", "pi-sessions-api", "status", "on",
     ";", "set-option", "-t", "pi-sessions-api", "status-style", "bg=#1a1b26,fg=#a9b1d6",
-    ";", "set-option", "-t", "pi-sessions-api", "status-right", "#[fg=#565f89]ctrl+q return#[default] │ 📁 package | pi-command-center ",
+    ";", "set-option", "-t", "pi-sessions-api", "status-right", "#[fg=#565f89]ctrl+q return#[default] │ 📁 package | example-service ",
     ";", "set-option", "-t", "pi-sessions-api", "status-right-length", "100",
     ";", "set-option", "-t", "pi-sessions-api", "status-left-length", "120",
   ]]);
@@ -49,13 +49,13 @@ test("configureManagedSessionStatusBar escapes tmux format markers in labels", a
 test("configureDashboardStatusBar overrides inherited colored window formats", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureDashboardStatusBar({ name: "pi-sessions-dashboard", cwd: "/repo/pi-command-center" }, exec);
+  await configureDashboardStatusBar({ name: "pi-sessions-dashboard", cwd: "/repo/example-service" }, exec);
 
   assert.deepEqual(exec.calls.map((call) => call.args), [[
     "set-option", "-t", "pi-sessions-dashboard", "status", "on",
     ";", "set-option", "-t", "pi-sessions-dashboard", "status-style", "bg=#1a1b26,fg=#a9b1d6",
     ";", "set-option", "-t", "pi-sessions-dashboard", "status-left", "",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "status-right", "#[fg=#565f89]dashboard#[default] │ 📁 pi-command-center ",
+    ";", "set-option", "-t", "pi-sessions-dashboard", "status-right", "#[fg=#565f89]dashboard#[default] │ 📁 example-service ",
     ";", "set-option", "-t", "pi-sessions-dashboard", "status-right-length", "100",
     ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-style", "fg=#a9b1d6,bg=#1a1b26",
     ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-current-style", "fg=#a9b1d6,bg=#1a1b26",
@@ -121,7 +121,7 @@ test("switchClientWithReturn can self-heal a missing return session before clean
     stateDir,
     returnSession: {
       name: "pi-sessions-dashboard",
-      cwd: "/repo/pi-command-center",
+      cwd: "/repo/example-service",
       command: "pi-sessions tui",
       env: { PI_CODING_AGENT_DIR: "/tmp/pi agent", PI_SESSIONS_DIR: "/tmp/pi-sessions" },
     },
@@ -129,7 +129,7 @@ test("switchClientWithReturn can self-heal a missing return session before clean
 
   const script = exec.calls.find((call) => call.args[0] === "bind-key")?.args[4] ?? "";
   assert.match(script, /tmux has-session -t 'pi-sessions-dashboard'/);
-  assert.match(script, /tmux new-session -d -s 'pi-sessions-dashboard' -c '\/repo\/pi-command-center'/);
+  assert.match(script, /tmux new-session -d -s 'pi-sessions-dashboard' -c '\/repo\/example-service'/);
   assert.match(script, /PI_CODING_AGENT_DIR=.*\/tmp\/pi agent/);
   assert.match(script, /PI_SESSIONS_DIR=.*\/tmp\/pi-sessions/);
   assert.match(script, /if tmux switch-client -t 'pi-sessions-dashboard'/);

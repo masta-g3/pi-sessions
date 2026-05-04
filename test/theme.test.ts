@@ -68,7 +68,7 @@ test("renderForm renders cwd start-truncated and errors visible at narrow widths
   const lines = renderForm({
     title: "New session",
     fields: [
-      { key: "cwd", label: "cwd", value: "/Users/manager/Code/agents/pi-command-center", truncate: "start", error: "cwd is required" },
+      { key: "cwd", label: "cwd", value: "/Users/manager/Code/agents/example-service", truncate: "start", error: "cwd is required" },
       { key: "group", label: "group", value: "default" },
       { key: "title", label: "title", value: "api" },
     ],
@@ -77,7 +77,7 @@ test("renderForm renders cwd start-truncated and errors visible at narrow widths
     narrowFooter: "tab · enter · esc",
   }, 30, darkTheme);
   const text = stripAnsi(lines.join("\n"));
-  assert.match(text, /pi-command-center|….*center/);
+  assert.match(text, /example-service|….*service/);
   assert.match(text, /cwd is required/);
   assert.doesNotMatch(text, /^\/Users\/manager.*…/m);
 });
