@@ -1,4 +1,5 @@
 import { loadRegistry, normalizeGroup, renameGroup as renameRegistryGroup, saveRegistry } from "../core/registry.js";
+import { assignGroupOrder, nextOrderInGroup, orderedSessions } from "../core/session-order.js";
 import { applyComputedStatus, computeStatus, markAcknowledged, readHeartbeat } from "../core/status.js";
 import { capturePane, sessionExists } from "../core/tmux.js";
 import type { SessionsRegistry, ManagedSession } from "../core/types.js";
@@ -81,10 +82,26 @@ export class SessionsController {
 
   async moveSessionToGroup(id: string, group: string, now = Date.now()): Promise<void> {
     const normalized = normalizeGroup(group);
+    const selected = this.registry.sessions.find((session) => session.id === id);
+    const order = selected && selected.group !== normalized ? nextOrderInGroup(this.registry.sessions, normalized) : selected?.order;
     this.registry = {
       ...this.registry,
-      sessions: this.registry.sessions.map((session) => session.id === id ? { ...session, group: normalized, updatedAt: now } : session),
+      sessions: this.registry.sessions.map((session) => session.id === id ? { ...session, group: normalized, order, updatedAt: now } : session),
     };
+    await saveRegistry(this.registry);
+  }
+
+  async reorderSelected(delta: -1 | 1): Promise<void> {
+    if (this.filter) return;
+    const selected = this.selected();
+    if (!selected) return;
+    const group = orderedSessions(this.registry.sessions).filter((session) => session.group === selected.group);
+    const index = group.findIndex((session) => session.id === selected.id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= group.length) return;
+    const ids = group.map((session) => session.id);
+    [ids[index], ids[target]] = [ids[target]!, ids[index]!];
+    this.registry = { ...this.registry, sessions: assignGroupOrder(this.registry.sessions, ids, selected.group) };
     await saveRegistry(this.registry);
   }
 
@@ -125,28 +142,12 @@ function keepSelection(sessions: ManagedSession[], selectedId: string | undefine
   return sessions[0]?.id;
 }
 
-const groupOrder = (a: string, b: string) => {
-  if (a === b) return 0;
-  if (a === "default") return -1;
-  if (b === "default") return 1;
-  return a.localeCompare(b);
-};
-
-const statusRank: Record<ManagedSession["status"], number> = {
-  error: 0,
-  waiting: 1,
-  running: 2,
-  starting: 2,
-  idle: 3,
-  stopped: 4,
-};
-
 function visibleSessions(sessions: ManagedSession[], filter: string | undefined): ManagedSession[] {
   const value = filter?.toLowerCase();
   const visible = value
     ? sessions.filter((session) => [session.title, session.group, basename(session.cwd), session.status].some((text) => text.toLowerCase().includes(value)))
     : sessions;
-  return visible.slice().sort((a, b) => groupOrder(a.group, b.group) || statusRank[a.status] - statusRank[b.status] || a.title.localeCompare(b.title));
+  return orderedSessions(visible);
 }
 
 function basename(path: string): string {

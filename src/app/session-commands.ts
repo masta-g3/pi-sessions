@@ -5,6 +5,7 @@ import { buildPiArgs } from "../core/pi-process.js";
 import { extensionPath } from "../core/extension-path.js";
 import { sessionsStateDir } from "../core/paths.js";
 import { createSessionRecord, loadRegistry, saveRegistry } from "../core/registry.js";
+import { nextOrderInGroup } from "../core/session-order.js";
 import { configureManagedSessionStatusBar, killSession, newSession, sessionExists } from "../core/tmux.js";
 import { resolveSession } from "./delete-session.js";
 import type { ManagedSession } from "../core/types.js";
@@ -21,8 +22,9 @@ export interface ForkInput {
 }
 
 export async function addManagedSession(input: SessionInput): Promise<ManagedSession> {
-  const record = createSessionRecord({ cwd: resolve(input.cwd), title: input.title, group: input.group });
   const registry = await loadRegistry();
+  const record = createSessionRecord({ cwd: resolve(input.cwd), title: input.title, group: input.group });
+  record.order = nextOrderInGroup(registry.sessions, record.group);
   registry.sessions.push(record);
   await saveRegistry(registry);
   await startManagedSession(record.id);
@@ -74,6 +76,7 @@ export async function forkManagedSession(sourceId: string, input: ForkInput = {}
     title: input.title ?? `${source.title} fork`,
     group: input.group ?? source.group,
   });
+  record.order = nextOrderInGroup(registry.sessions, record.group);
   registry.sessions.push(record);
   await saveRegistry(registry);
   const piArgs = buildPiArgs({ extensionPath: extensionPath(), forkFrom: sourceFile });

@@ -86,6 +86,9 @@ export async function runTui(): Promise<void> {
     renameGroup(from, to) {
       return mutateRegistry(() => controller.renameGroup(from, to));
     },
+    reorderSelected(delta) {
+      return mutateRegistry(() => controller.reorderSelected(delta));
+    },
     acknowledge() {
       return mutateRegistry(() => controller.acknowledgeSelected());
     },

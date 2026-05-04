@@ -1,3 +1,4 @@
+import { groupOrder, orderedSessions } from "../core/session-order.js";
 import type { ManagedSession, SessionStatus } from "../core/types.js";
 
 export interface RenderSession {
@@ -18,8 +19,7 @@ export interface RenderGroup {
   name: string;
   waitingCount: number;
   errorCount: number;
-  live: RenderSession[];
-  stopped: RenderSession[];
+  sessions: RenderSession[];
 }
 
 export interface RenderModel {
@@ -44,25 +44,9 @@ export interface BuildRenderModelInput {
   preview?: string;
 }
 
-const groupOrder = (a: string, b: string) => {
-  if (a === b) return 0;
-  if (a === "default") return -1;
-  if (b === "default") return 1;
-  return a.localeCompare(b);
-};
-
-const statusRank: Record<SessionStatus, number> = {
-  error: 0,
-  waiting: 1,
-  running: 2,
-  starting: 2,
-  idle: 3,
-  stopped: 4,
-};
-
 export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
   const filter = input.filter?.trim().toLowerCase();
-  const visible = filter ? input.sessions.filter((session) => matchesFilter(session, filter)) : input.sessions;
+  const visible = orderedSessions(filter ? input.sessions.filter((session) => matchesFilter(session, filter)) : input.sessions);
   const selectedId = pickSelectedId(visible, input.selectedId);
   const mapped = visible.map((session) => toRenderSession(session, session.id === selectedId));
   const groupsByName = new Map<string, RenderSession[]>();
@@ -74,18 +58,12 @@ export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
 
   const groups = [...groupsByName.entries()]
     .sort(([a], [b]) => groupOrder(a, b))
-    .map(([name, sessions]) => {
-      const sorted = sessions.slice().sort((a, b) => statusRank[a.status] - statusRank[b.status] || a.title.localeCompare(b.title));
-      const stopped = sorted.filter((session) => session.status === "stopped");
-      const live = sorted.filter((session) => session.status !== "stopped");
-      return {
-        name,
-        waitingCount: sorted.filter((session) => session.status === "waiting").length,
-        errorCount: sorted.filter((session) => session.status === "error").length,
-        live,
-        stopped,
-      } satisfies RenderGroup;
-    });
+    .map(([name, sessions]) => ({
+      name,
+      waitingCount: sessions.filter((session) => session.status === "waiting").length,
+      errorCount: sessions.filter((session) => session.status === "error").length,
+      sessions,
+    } satisfies RenderGroup));
 
   const compactFooter = input.width < 80;
   return {
@@ -100,7 +78,7 @@ export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
       ? input.filterEditing
         ? `filter: ${input.filter || ""}  • esc clear • enter done`
         : `filter: ${input.filter || ""}  • esc clear`
-      : compactFooter ? "? help • / filter • enter • r rename • g group • d delete • q" : "↑↓/jk • enter attach • n new • r rename • f fork • g move • G rename group • R restart • d delete • s skills • m mcp • q",
+      : compactFooter ? "? help • / filter • enter • r rename • g group • d delete • q" : "↑↓/jk move • K/J reorder • enter attach • n new • r rename • f fork • g move • G rename group • R restart • d delete • s skills • m mcp • q",
     filter: input.filter,
     preview: input.preview ?? "",
   };
@@ -116,10 +94,10 @@ export function retainSelectionAfterRefresh(
   const removed = previous.find((session) => session.id === selectedId);
   if (!removed) return next[0]?.id;
 
-  const sameGroup = next.filter((session) => session.group === removed.group);
-  if (!sameGroup.length) return next[0]?.id;
+  const sameGroup = orderedSessions(next).filter((session) => session.group === removed.group);
+  if (!sameGroup.length) return orderedSessions(next)[0]?.id;
 
-  const previousSameGroup = previous.filter((session) => session.group === removed.group);
+  const previousSameGroup = orderedSessions(previous).filter((session) => session.group === removed.group);
   const oldIndex = previousSameGroup.findIndex((session) => session.id === selectedId);
   return sameGroup[Math.min(oldIndex, sameGroup.length - 1)]?.id ?? sameGroup.at(-1)?.id;
 }

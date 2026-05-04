@@ -10,6 +10,7 @@ export interface ManagedSession {
   sessionFile?: string;
   piSessionId?: string;
   acknowledgedAt?: number;
+  order?: number;
   createdAt: number;
   updatedAt: number;
   error?: string;

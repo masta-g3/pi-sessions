@@ -90,6 +90,36 @@ test("q quits from help overlay", () => {
   assert.equal(stopped, true);
 });
 
+test("J K and shift arrows reorder selected session", () => {
+  const deltas: number[] = [];
+  const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api"), session("docs", "docs")] }), () => {}, {
+    reorderSelected: (delta) => { deltas.push(delta); },
+  });
+
+  view.handleInput("J");
+  view.handleInput("K");
+  view.handleInput("\u001b[b");
+  view.handleInput("\u001b[a");
+
+  assert.deepEqual(deltas, [1, -1, 1, -1]);
+});
+
+test("reorder is disabled while filter is active", () => {
+  const deltas: number[] = [];
+  const controller = new SessionsController({ version: 1, sessions: [session("api", "api"), session("docs", "docs")] });
+  const view = new SessionsView(controller, () => {}, {
+    reorderSelected: (delta) => { deltas.push(delta); },
+  });
+
+  view.handleInput("/");
+  view.handleInput("a");
+  view.handleInput("\r");
+  view.handleInput("J");
+
+  assert.deepEqual(deltas, []);
+  assert.match(view.render(100).join("\n"), /clear filter to reorder/);
+});
+
 test("enter triggers attach action outside tmux", () => {
   const oldTmux = process.env.TMUX;
   delete process.env.TMUX;

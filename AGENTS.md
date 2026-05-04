@@ -1,7 +1,8 @@
 # pi-sessions Agent Notes
 
 - Keep this package Pi-native and small; do not import Agent Deck architecture unless explicitly requested.
-- Groups are implicit session labels, not first-class records or selectable headers: `g` moves the selected session, `G` renames that session's current group label globally, `r` renames the selected session, and `R` restarts it. Keep `e` as a hidden rename alias.
+- Groups are implicit session labels, not first-class records or selectable headers: `g` moves the selected session, `G` renames that session's current group label globally, `K`/`J` reorder within the current group, `r` renames the selected session, and `R` restarts it. Keep `e` as a hidden rename alias.
+- Session row order is persisted/user-controlled via `src/core/session-order.ts`; do not reintroduce status/title sorting or a separate stopped-session section.
 - TUI rendering must remain pure and testable. Any ANSI styling must be width-safe through the theme/layout helpers. Use `src/tui/text-input.ts` for single-line text editing and `src/tui/form.ts`/`renderForm()` for editable dialogs instead of one-off dialog state.
 - For Skills/MCP project state, write the final selection once. Do not launch parallel per-item JSON read-modify-write updates. The TUI pickers target the dashboard cwd, not the selected session cwd.
 - Clipboard support is optional best-effort; attach/switch flows must still display the exact tmux command.

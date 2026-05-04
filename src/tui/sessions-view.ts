@@ -58,6 +58,7 @@ export interface SessionsViewActions {
   changeGroup?: (sessionId: string, group: string) => unknown;
   renameSession?: (sessionId: string, title: string) => unknown;
   renameGroup?: (from: string, to: string) => unknown;
+  reorderSelected?: (delta: -1 | 1) => unknown;
   acknowledge?: () => unknown;
   newFormContext?: () => NewFormContext;
   skills?: () => PickerItem[];
@@ -145,7 +146,9 @@ export class SessionsView implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.down) || data === "j") {
+    if (data === "J" || matchesKey(data, Key.shift("down"))) this.reorderSelected(1);
+    else if (data === "K" || matchesKey(data, Key.shift("up"))) this.reorderSelected(-1);
+    else if (matchesKey(data, Key.down) || data === "j") {
       this.clearPendingRestart();
       this.controller.move(1);
     }
@@ -302,6 +305,17 @@ export class SessionsView implements Component {
       return;
     }
     this.actions.attachOutsideTmux?.(selected.tmuxSession);
+  }
+
+  private reorderSelected(delta: -1 | 1) {
+    this.clearPendingRestart();
+    this.message = undefined;
+    if (this.controller.snapshot().filter !== undefined) {
+      this.message = "clear filter to reorder";
+      return;
+    }
+    const reorder = this.actions.reorderSelected;
+    this.runAction(() => reorder ? reorder(delta) : this.controller.reorderSelected(delta), "reordering session...");
   }
 
   private restartSelected() {
@@ -771,7 +785,7 @@ function renderHelp(width: number): string[] {
   const lines = [
     "pi sessions help",
     "",
-    "navigation   ↑↓/j/k move   / filter",
+    "navigation   ↑↓/j/k move cursor   K/J reorder   / filter",
     "sessions     enter attach   n new   r rename   f fork   g/G group   R restart   d delete   a mark read",
     "config       s skills       m mcp",
     "system       q quit         esc cancel",

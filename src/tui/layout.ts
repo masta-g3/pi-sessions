@@ -78,11 +78,7 @@ function renderSessionList(model: RenderModel, width: number, styles: LayoutStyl
   for (const group of model.groups) {
     const counts = [group.waitingCount ? `${group.waitingCount} waiting` : "", group.errorCount ? `${group.errorCount} error` : ""].filter(Boolean).join(" · ");
     lines.push(twoColumn(styles.accent(group.name), counts ? styles.warning(counts) : "", width));
-    for (const session of group.live) lines.push(renderSessionRow(session, width, styles));
-    if (group.stopped.length) {
-      lines.push(truncate(styles.dim("  Stopped"), width));
-      for (const session of group.stopped) lines.push(renderSessionRow(session, width, styles));
-    }
+    for (const session of group.sessions) lines.push(renderSessionRow(session, width, styles));
   }
   return lines;
 }

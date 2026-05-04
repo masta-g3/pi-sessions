@@ -35,6 +35,18 @@ test("grouping order and status counts", () => {
   assert.match(renderSessions(model).join("\n"), /1 waiting · 1 error/);
 });
 
+test("session order is stable and ignores status and title", () => {
+  const model = buildRenderModel({
+    sessions: [
+      session("worker", "default", "idle", "zzz"),
+      session("api", "default", "error", "aaa"),
+      session("docs", "default", "waiting", "mmm"),
+    ],
+    width: 120,
+  });
+  assert.deepEqual(model.groups[0]?.sessions.map((item) => item.id), ["worker", "api", "docs"]);
+});
+
 test("narrow layout hides preview and uses compact footer", () => {
   const model = buildRenderModel({ sessions: [session("a", "default", "idle")], width: 70 });
   assert.equal(model.showPreview, false);
@@ -53,11 +65,11 @@ test("error reason appears in selected metadata", () => {
   assert.match(lines.join("\n"), /error\s+MCP failed/);
 });
 
-test("selected and stopped rows have distinct treatments", () => {
-  const model = buildRenderModel({ sessions: [session("a", "default", "idle", "api"), session("b", "default", "stopped", "docs")], selectedId: "a", width: 100 });
+test("selected and stopped rows have distinct treatments without moving stopped rows", () => {
+  const model = buildRenderModel({ sessions: [session("a", "default", "stopped", "api"), session("b", "default", "idle", "docs")], selectedId: "b", width: 100 });
   const lines = renderSessions(model).join("\n");
-  assert.match(lines, /▶ ○ api/);
-  assert.match(lines, /· - docs/);
+  assert.match(lines, /· - api[\s\S]*▶ ○ docs/);
+  assert.doesNotMatch(lines, /Stopped/);
 });
 
 test("preview renders captured tmux output with empty state", () => {
@@ -74,7 +86,7 @@ test("preview renders captured tmux output with empty state", () => {
 test("filter matches across title group cwd basename and status", () => {
   const model = buildRenderModel({ sessions: [session("a", "default", "idle", "api"), session("b", "work", "waiting", "docs")], width: 100, filter: "wait" });
   assert.equal(model.groups.length, 1);
-  assert.equal(model.groups[0]?.live[0]?.id, "b");
+  assert.equal(model.groups[0]?.sessions[0]?.id, "b");
 });
 
 test("filter with zero matches renders no-match state", () => {
