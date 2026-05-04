@@ -30,7 +30,7 @@ docs/STRUCTURE.md        this onboarding guide
 - Project MCP enablement lives in `<project>/.pi/sessions/mcp.json`; available MCP servers come from the configured catalog path or `<global-state>/mcp.json`.
 - In the standalone TUI, `<project>` for Skills/MCP pickers is the dashboard process cwd, not the selected session cwd.
 - Pooled MCP uses a Unix socket at `<global-state>/pool/pool.sock`; run `pi-sessions mcp-pool` explicitly when pooled servers are enabled.
-- Inside-tmux switch return state lives under `return-key/` while a temporary `Ctrl+Q` binding is active.
+- Inside-tmux switch return state lives under `return-key/` while a temporary `Ctrl+Q` binding is active; `pi-sessions doctor` reports active/stale return state.
 
 ## Build and test
 
@@ -45,7 +45,7 @@ node dist/cli.js tui
 ## Design rules
 
 - Keep status logic centralized in `src/core/status.ts`.
-- Keep tmux shelling centralized in `src/core/tmux.ts`. The default dashboard launcher creates/attaches/switches to `pi-sessions-dashboard`; direct TUI mode is `pi-sessions tui`. Inside-tmux managed-session attach uses native `switch-client` plus a temporary guarded `Ctrl+Q` return binding; outside-tmux direct TUI attach remains normal `tmux attach-session`. Dashboard and managed-session tmux chrome is configured there too: dashboard overrides status/window styles and formats so global tmux themes do not leak in, while managed status-right shows `ctrl+q return │ 📁 <session title> | <project>`.
+- Keep tmux shelling centralized in `src/core/tmux.ts`. The default dashboard launcher creates/attaches/switches to `pi-sessions-dashboard`; direct TUI mode is `pi-sessions tui`. Inside-tmux managed-session attach uses native `switch-client` plus a temporary guarded `Ctrl+Q` return binding that can recreate the dashboard before returning and only restores the previous binding after a successful return switch; outside-tmux direct TUI attach remains normal `tmux attach-session`. Dashboard and managed-session tmux chrome is configured there too: dashboard overrides status/window styles and formats so global tmux themes do not leak in, while managed status-right shows `ctrl+q return │ 📁 <session title> | <project>`.
 - Keep extension loading idempotent. Managed sessions still pass `--extension` so linked CLI usage works without `pi install`; when the package is also installed, the extension may load twice in one Pi process. Suppress duplicate registration, but clear active process guards on `session_shutdown` so later sessions can register.
 - Delete sessions through `src/app/delete-session.ts`: stop tmux, remove the registry row, remove the heartbeat, and keep Pi conversation/session files. The TUI pauses the refresh loop before deletion so stale snapshots cannot rewrite deleted rows.
 - Groups are implicit flat labels on sessions, not separate records. Creating a session with a new group label creates the group; pressing `g` in the TUI moves the selected session to an existing or new group, while `G` renames the selected session's current group for all sessions in that group. Pressing `r` renames the selected session title; pressing `R` restarts it. Do not add separate empty-group lifecycle unless the model changes.

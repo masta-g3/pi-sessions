@@ -5,7 +5,7 @@ import { configPath, effectiveMcpCatalogPath, effectiveSkillPoolDirs } from "./c
 import { extensionPath } from "./core/extension-path.js";
 import { registryPath, sessionsStateDir } from "./core/paths.js";
 import { loadRegistry } from "./core/registry.js";
-import { hasTmux } from "./core/tmux.js";
+import { hasTmux, inspectSwitchReturnBinding } from "./core/tmux.js";
 import { dashboardEnv, openDashboard } from "./app/dashboard.js";
 import { runTui } from "./app/run-tui.js";
 import { deleteManagedSession } from "./app/delete-session.js";
@@ -160,6 +160,11 @@ async function doctor() {
   console.log(`mcp:        ${await effectiveMcpCatalogPath()}`);
   console.log(`writable:   ok`);
   console.log(`tmux:       ${(await hasTmux()) ? "ok" : "missing"}`);
+  const returnKey = await inspectSwitchReturnBinding();
+  if (returnKey.active) {
+    const state = returnKey.stale ? "stale" : "active";
+    console.log(`return key: ${state} ${returnKey.returnKey} ${returnKey.targetSession} -> ${returnKey.controlSession}`);
+  }
   console.log(`extension:  ${ext}`);
 }
 

@@ -104,6 +104,7 @@ export interface SwitchClientOptions {
   managedPrefix?: string;
   stateDir?: string;
   returnSession?: {
+    name: string;
     cwd: string;
     command: string;
   };
@@ -116,6 +117,10 @@ interface ActiveReturnBinding {
   returnKey: string;
   restorePath: string;
 }
+
+export type SwitchReturnBindingStatus =
+  | { active: false }
+  | (ActiveReturnBinding & { active: true; stale: boolean });
 
 export async function currentTmuxSession(exec: TmuxExec = realTmuxExec): Promise<string> {
   const result = await exec.exec("tmux", ["display-message", "-p", "#{session_name}"]);
@@ -178,6 +183,18 @@ export async function switchClientWithReturn(
   }
 }
 
+export async function inspectSwitchReturnBinding(options: { stateDir?: string } = {}): Promise<SwitchReturnBindingStatus> {
+  const stateDir = options.stateDir ?? join(sessionsStateDir(), "return-key");
+  const activePath = join(stateDir, "active.json");
+  try {
+    const active = JSON.parse(await readFile(activePath, "utf8")) as ActiveReturnBinding;
+    return { ...active, active: true, stale: !isProcessAlive(active.ownerPid) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { active: false };
+    throw error;
+  }
+}
+
 async function currentKeyBinding(returnKey: string, exec: TmuxExec): Promise<string> {
   try {
     const result = await exec.exec("tmux", ["list-keys", "-T", "root", returnKey]);
@@ -226,6 +243,7 @@ function returnBindingScript(input: {
   managedPrefix: string;
   returnKey: string;
   returnSession?: {
+    name: string;
     cwd: string;
     command: string;
   };
@@ -236,7 +254,7 @@ function returnBindingScript(input: {
     `test -s ${shellQuote(input.restorePath)} && tmux source-file ${shellQuote(input.restorePath)}`,
     `rm -f ${shellQuote(input.restorePath)} ${shellQuote(input.activePath)}`,
   ].join("; ");
-  const ensureReturnSession = input.returnSession
+  const ensureReturnSession = input.returnSession?.name === input.controlSession
     ? `tmux has-session -t ${shellQuote(input.controlSession)} 2>/dev/null || tmux new-session -d -s ${shellQuote(input.controlSession)} -c ${shellQuote(input.returnSession.cwd)} ${shellQuote(input.returnSession.command)} 2>/dev/null || true; `
     : "";
   return `S=$(tmux display-message -p '#{session_name}'); case "$S" in ${prefixPattern}*) `

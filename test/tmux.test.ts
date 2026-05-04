@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { configureDashboardStatusBar, configureManagedSessionStatusBar, currentTmuxClient, currentTmuxSession, restoreSwitchReturnBinding, switchClientWithReturn, type TmuxExec } from "../src/core/tmux.js";
+import { configureDashboardStatusBar, configureManagedSessionStatusBar, currentTmuxClient, currentTmuxSession, inspectSwitchReturnBinding, restoreSwitchReturnBinding, switchClientWithReturn, type TmuxExec } from "../src/core/tmux.js";
 import type { CommandResult } from "../src/core/types.js";
 
 interface Call {
@@ -119,7 +119,7 @@ test("switchClientWithReturn can self-heal a missing return session before clean
   await switchClientWithReturn({
     targetSession: "pi-sessions-target",
     stateDir,
-    returnSession: { cwd: "/repo/pi-command-center", command: "pi-sessions tui" },
+    returnSession: { name: "pi-sessions-dashboard", cwd: "/repo/pi-command-center", command: "pi-sessions tui" },
   }, exec);
 
   const script = exec.calls.find((call) => call.args[0] === "bind-key")?.args[4] ?? "";
@@ -127,6 +127,7 @@ test("switchClientWithReturn can self-heal a missing return session before clean
   assert.match(script, /tmux new-session -d -s 'pi-sessions-dashboard' -c '\/repo\/pi-command-center' 'pi-sessions tui'/);
   assert.match(script, /if tmux switch-client -t 'pi-sessions-dashboard'/);
   assert.match(script, /then tmux unbind-key/);
+  assert.match(script, /then .*rm -f .*previous\.tmux.*active\.json.*; fi/);
 });
 
 test("switchClientWithReturn handles absent previous binding", async () => {
@@ -175,6 +176,28 @@ test("switchClientWithReturn restores binding when switch fails after bind", asy
   const sourceIndex = exec.calls.findIndex((call, index) => index > switchIndex && call.args[0] === "source-file");
   assert.notEqual(unbindIndex, -1);
   assert.notEqual(sourceIndex, -1);
+});
+
+test("inspectSwitchReturnBinding reports missing and stale return state", async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+
+  assert.deepEqual(await inspectSwitchReturnBinding({ stateDir }), { active: false });
+
+  const previousPath = join(stateDir, "previous.tmux");
+  await writeFile(join(stateDir, "active.json"), JSON.stringify({
+    ownerPid: 999999999,
+    controlSession: "pi-sessions-dashboard",
+    targetSession: "pi-sessions-target",
+    returnKey: "C-q",
+    restorePath: previousPath,
+  }));
+
+  const status = await inspectSwitchReturnBinding({ stateDir });
+  assert.equal(status.active, true);
+  if (status.active) {
+    assert.equal(status.stale, true);
+    assert.equal(status.controlSession, "pi-sessions-dashboard");
+  }
 });
 
 test("restoreSwitchReturnBinding restores active binding without rebinding", async () => {
