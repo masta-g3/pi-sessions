@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { basename } from "node:path";
 import { charLength } from "./text-input.js";
 import {
@@ -27,16 +28,18 @@ export interface Field extends FormField<FieldKey> {
 }
 
 export interface NewFormState extends FormState<FieldKey, Field> {
-  titleTouched: boolean;
+  groupTouched: boolean;
 }
 
 export interface NewFormContext {
   cwd: string;
   knownCwds?: string[];
-  groupForCwd?: (cwd: string) => string | undefined;
+  titleGenerator?: () => string;
 }
 
 const ORDER: FieldKey[] = ["cwd", "group", "title"];
+const SESSION_ADJECTIVES = ["amber", "black", "blue", "bright", "calm", "crimson", "dark", "gold", "green", "quiet", "red", "silver", "swift", "violet", "white"] as const;
+const SESSION_NOUNS = ["aleph", "atlas", "beacon", "cipher", "comet", "delta", "ember", "falcon", "lambda", "nova", "orbit", "pixel", "quartz", "vector", "zenith"] as const;
 
 export function moveFocus(state: NewFormState, delta: number): NewFormState {
   return { ...state, focus: moveFormFocus(state, delta).focus };
@@ -89,7 +92,8 @@ export function deleteWord(state: NewFormState): NewFormState {
 export function createNewForm(ctx: NewFormContext): NewFormState {
   const cwd = ctx.cwd;
   const suggestions = uniqueWithFirst(cwd, ctx.knownCwds ?? []);
-  const group = ctx.groupForCwd?.(cwd) ?? "default";
+  const group = basename(cwd) || "default";
+  const title = ctx.titleGenerator?.() ?? randomSessionTitle();
   return {
     ...createForm<FieldKey, Field>([
       {
@@ -101,11 +105,11 @@ export function createNewForm(ctx: NewFormContext): NewFormState {
         cycleIndex: 0,
         truncate: "start",
       },
-      { key: "group", label: "group", value: group, hint: "session group label" },
-      { key: "title", label: "title", value: basename(cwd) || "session", hint: "defaults to cwd basename" },
+      { key: "group", label: "group", value: group, hint: "defaults to cwd basename" },
+      { key: "title", label: "title", value: title, hint: "random two-word slug" },
     ], ORDER[0]),
     order: ORDER,
-    titleTouched: false,
+    groupTouched: false,
   };
 }
 
@@ -166,13 +170,21 @@ function afterFieldEdit(previous: NewFormState, next: NewFormState, key: FieldKe
     const cwd = fields.cwd;
     fields.cwd = { ...cwd, cycleIndex: matchSuggestionIndex(cwd.value, cwd.suggestions) };
   }
-  let titleTouched = previous.titleTouched;
-  if (key === "title") titleTouched = true;
-  else if (key === "cwd" && !titleTouched) {
-    const title = basename(fields.cwd.value) || fields.title.value;
-    fields.title = { ...fields.title, value: title, cursor: charLength(title) };
+  let groupTouched = previous.groupTouched;
+  if (key === "group") groupTouched = true;
+  else if (key === "cwd" && !groupTouched) {
+    const group = basename(fields.cwd.value) || "default";
+    fields.group = { ...fields.group, value: group, cursor: charLength(group) };
   }
-  return { ...next, fields, titleTouched };
+  return { ...next, fields, groupTouched };
+}
+
+export function randomSessionTitle(): string {
+  return `${randomItem(SESSION_ADJECTIVES)}-${randomItem(SESSION_NOUNS)}`;
+}
+
+function randomItem(items: readonly string[]): string {
+  return items[randomInt(items.length)] ?? items[0] ?? "session";
 }
 
 function matchSuggestionIndex(value: string, suggestions: string[] | undefined): number | undefined {

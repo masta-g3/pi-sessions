@@ -89,8 +89,8 @@ test("renderForm keeps stable width and marks one focused field", () => {
       title: "New session",
       fields: [
         { key: "cwd", label: "cwd", value: "/tmp/api", hint: "current dir" },
-        { key: "group", label: "group", value: "default", hint: "tab to focus" },
-        { key: "title", label: "title", value: "api", hint: "defaults to cwd basename" },
+        { key: "group", label: "group", value: "api", hint: "defaults to cwd basename" },
+        { key: "title", label: "title", value: "black-aleph", hint: "random two-word slug" },
       ],
       focus: "cwd",
       footer: "tab next · enter create · esc cancel",

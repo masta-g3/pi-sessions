@@ -95,13 +95,7 @@ export async function runTui(): Promise<void> {
     newFormContext() {
       const sessions = controller.snapshot().registry.sessions;
       const knownCwds = Array.from(new Set(sessions.map((session) => session.cwd))).sort();
-      const groupForCwd = (cwd: string): string | undefined => {
-        const matches = sessions.filter((session) => session.cwd === cwd);
-        if (matches.length === 0) return undefined;
-        const recent = matches.reduce((acc, session) => session.updatedAt > acc.updatedAt ? session : acc);
-        return recent.group;
-      };
-      return { cwd: process.cwd(), knownCwds, groupForCwd };
+      return { cwd: process.cwd(), knownCwds };
     },
     skills() {
       return skillPool.map((skill) => ({ name: skill.name, enabled: enabledSkillNames.has(skill.name) }));
