@@ -20,7 +20,7 @@ import {
   type FormState,
 } from "./form.js";
 
-export type FieldKey = "cwd" | "extraCwds" | "group" | "title";
+export type FieldKey = "cwd" | "repo2" | "repo3" | "group" | "title";
 
 export interface Field extends FormField<FieldKey> {
   suggestions?: string[];
@@ -35,10 +35,11 @@ export interface NewFormContext {
   cwd: string;
   group?: string;
   knownCwds?: string[];
+  additionalCwds?: string[];
   titleGenerator?: () => string;
 }
 
-const ORDER: FieldKey[] = ["cwd", "group", "title", "extraCwds"];
+const ORDER: FieldKey[] = ["cwd", "repo2", "repo3", "group", "title"];
 const SESSION_ADJECTIVES = ["amber", "black", "blue", "bright", "calm", "crimson", "dark", "gold", "green", "quiet", "red", "silver", "swift", "violet", "white"] as const;
 const SESSION_NOUNS = ["aleph", "atlas", "beacon", "cipher", "comet", "delta", "ember", "falcon", "lambda", "nova", "orbit", "pixel", "quartz", "vector", "zenith"] as const;
 
@@ -96,19 +97,22 @@ export function createNewForm(ctx: NewFormContext): NewFormState {
   const contextGroup = ctx.group?.trim();
   const group = contextGroup || basename(cwd) || "default";
   const title = ctx.titleGenerator?.() ?? randomSessionTitle();
+  const repo2 = ctx.additionalCwds?.[0] ?? "";
+  const repo3 = ctx.additionalCwds?.[1] ?? "";
   return {
     ...createForm<FieldKey, Field>([
       {
         key: "cwd",
-        label: "cwd",
+        label: "primary cwd",
         value: cwd,
         hint: cwdHint(suggestions.length),
         suggestions,
         cycleIndex: 0,
         truncate: "start",
       },
-      { key: "extraCwds", label: "extra cwd(s)", value: "", hint: "optional · comma-separated · symlinked into one workspace", truncate: "start" },
-      { key: "group", label: "group", value: group, hint: contextGroup ? "selected session group" : "defaults to cwd basename" },
+      { key: "repo2", label: "repo 2", value: repo2, hint: "optional extra repo · symlinked into workspace", truncate: "start" },
+      { key: "repo3", label: "repo 3", value: repo3, hint: "optional extra repo · symlinked into workspace", truncate: "start" },
+      { key: "group", label: "group", value: group, hint: contextGroup ? "selected session group" : "defaults to primary cwd basename" },
       { key: "title", label: "title", value: title, hint: "random two-word slug" },
     ], ORDER[0]),
     order: ORDER,
@@ -140,7 +144,7 @@ export function validateNewForm(state: NewFormState): ValidationResult {
   let firstInvalid: FieldKey | undefined;
   for (const key of state.order) {
     const trimmed = fields[key].value.trim();
-    if (!trimmed && key !== "extraCwds") {
+    if (!trimmed && key !== "repo2" && key !== "repo3") {
       fields[key] = { ...fields[key], error: `${fields[key].label} is required` };
       firstInvalid ??= key;
     } else {
@@ -152,17 +156,13 @@ export function validateNewForm(state: NewFormState): ValidationResult {
 }
 
 export function submission(state: NewFormState): { cwd: string; group: string; title: string; additionalCwds?: string[] } {
-  const additionalCwds = parseAdditionalCwds(state.fields.extraCwds.value);
+  const additionalCwds = [state.fields.repo2.value, state.fields.repo3.value].map((item) => item.trim()).filter(Boolean);
   return {
     cwd: state.fields.cwd.value.trim(),
     group: state.fields.group.value.trim(),
     title: state.fields.title.value.trim(),
     ...(additionalCwds.length ? { additionalCwds } : {}),
   };
-}
-
-export function parseAdditionalCwds(value: string): string[] {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
 function applyEdit(state: NewFormState, key: FieldKey, nextValue: string): NewFormState {

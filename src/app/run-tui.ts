@@ -16,8 +16,13 @@ import { addManagedSession, forkManagedSession, restartManagedSession } from "./
 import type { ManagedSession } from "../core/types.js";
 
 export function buildNewFormContext(input: { cwd: string; sessions: ManagedSession[]; selected?: ManagedSession }): NewFormContext {
-  const knownCwds = Array.from(new Set(input.sessions.map((session) => session.cwd))).sort();
-  return { cwd: input.selected?.cwd ?? input.cwd, group: input.selected?.group, knownCwds };
+  const knownCwds = Array.from(new Set(input.sessions.flatMap((session) => [session.cwd, ...(session.additionalCwds ?? [])]))).sort();
+  return {
+    cwd: input.selected?.cwd ?? input.cwd,
+    group: input.selected?.group,
+    knownCwds,
+    ...(input.selected?.additionalCwds?.length ? { additionalCwds: input.selected.additionalCwds } : {}),
+  };
 }
 
 export interface ThemeRefreshLoopOptions {

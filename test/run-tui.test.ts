@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { buildNewFormContext } from "../src/app/run-tui.js";
 import type { ManagedSession } from "../src/core/types.js";
 
-function session(id: string, cwd: string, group: string): ManagedSession {
+function session(id: string, cwd: string, group: string, additionalCwds?: string[]): ManagedSession {
   return {
     id,
     title: id,
     cwd,
     group,
+    ...(additionalCwds?.length ? { additionalCwds } : {}),
     tmuxSession: `pi-sessions-${id}`,
     status: "idle",
     createdAt: 1,
@@ -16,8 +17,8 @@ function session(id: string, cwd: string, group: string): ManagedSession {
   };
 }
 
-test("buildNewFormContext defaults to selected session cwd and group", () => {
-  const selected = session("api", "/repo/api", "backend");
+test("buildNewFormContext defaults to selected session cwd, group, and additional repos", () => {
+  const selected = session("api", "/repo/api", "backend", ["/repo/web", "/repo/shared"]);
   const context = buildNewFormContext({
     cwd: "/dashboard",
     sessions: [session("docs", "/repo/docs", "docs"), selected],
@@ -27,7 +28,8 @@ test("buildNewFormContext defaults to selected session cwd and group", () => {
   assert.deepEqual(context, {
     cwd: "/repo/api",
     group: "backend",
-    knownCwds: ["/repo/api", "/repo/docs"],
+    knownCwds: ["/repo/api", "/repo/docs", "/repo/shared", "/repo/web"],
+    additionalCwds: ["/repo/web", "/repo/shared"],
   });
 });
 
