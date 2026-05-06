@@ -5,8 +5,9 @@ import { buildPiArgs } from "../core/pi-process.js";
 import { extensionPath } from "../core/extension-path.js";
 import { effectiveSessionCwd, ensureMultiRepoWorkspace } from "../core/multi-repo.js";
 import { sessionsStateDir } from "../core/paths.js";
-import { createSessionRecord, loadRegistry, saveRegistry, upsertSession } from "../core/registry.js";
+import { createSessionRecord, loadRegistry, updateRegistry, upsertSession } from "../core/registry.js";
 import { nextOrderInGroup } from "../core/session-order.js";
+import { isSubagentSession } from "../core/session-tree.js";
 import { configureManagedSessionStatusBar, killSession, newSession, sessionExists } from "../core/tmux.js";
 import { loadSessionsTheme } from "../tui/theme.js";
 import { resolveSession } from "./delete-session.js";
@@ -25,12 +26,12 @@ export interface ForkInput {
 }
 
 export async function addManagedSession(input: SessionInput): Promise<ManagedSession> {
-  const registry = await loadRegistry();
   let record = createSessionRecord({ cwd: resolve(input.cwd), title: input.title, group: input.group, additionalCwds: input.additionalCwds });
   record = await ensureMultiRepoWorkspace(record);
-  record.order = nextOrderInGroup(registry.sessions, record.group);
-  registry.sessions.push(record);
-  await saveRegistry(registry);
+  await updateRegistry((registry) => {
+    record.order = nextOrderInGroup(registry.sessions, record.group);
+    return { ...registry, sessions: [...registry.sessions, record] };
+  });
   await startManagedSession(record.id);
   return record;
 }
@@ -38,12 +39,13 @@ export async function addManagedSession(input: SessionInput): Promise<ManagedSes
 export async function startManagedSession(id: string): Promise<void> {
   const registry = await loadRegistry();
   let session = findSession(registry, id);
+  if (isSubagentSession(session)) throw new Error(`Cannot start subagent row: ${session.title}`);
   if (await sessionExists(session.tmuxSession)) {
     await configureManagedSessionStatusBar({ name: session.tmuxSession, title: session.title, cwd: session.cwd, theme: await sessionTheme(session) });
     return;
   }
   session = await ensureMultiRepoWorkspace(session);
-  await saveRegistry(upsertSession(registry, session));
+  await updateRegistry((latest) => upsertSession(latest, session));
   const piArgs = buildPiArgs({ extensionPath: extensionPath(), sessionFile: session.sessionFile });
   await newSession({
     name: session.tmuxSession,
@@ -57,19 +59,21 @@ export async function startManagedSession(id: string): Promise<void> {
 export async function stopManagedSession(id: string): Promise<void> {
   const registry = await loadRegistry();
   const session = findSession(registry, id);
+  if (isSubagentSession(session)) throw new Error(`Cannot stop subagent row: ${session.title}`);
   if (await sessionExists(session.tmuxSession)) await killSession(session.tmuxSession);
-  session.status = "stopped";
-  session.updatedAt = Date.now();
-  await saveRegistry(registry);
+  await updateRegistry((latest) => {
+    const latestSession = findSession(latest, id);
+    if (isSubagentSession(latestSession)) throw new Error(`Cannot stop subagent row: ${latestSession.title}`);
+    return { ...latest, sessions: latest.sessions.map((item) => item.id === latestSession.id ? { ...item, status: "stopped", updatedAt: Date.now() } : item) };
+  });
 }
 
 export async function restartManagedSession(id: string): Promise<void> {
   await stopManagedSession(id);
-  const registry = await loadRegistry();
-  const session = findSession(registry, id);
-  session.status = "starting";
-  session.updatedAt = Date.now();
-  await saveRegistry(registry);
+  await updateRegistry((registry) => {
+    const session = findSession(registry, id);
+    return { ...registry, sessions: registry.sessions.map((item) => item.id === session.id ? { ...item, status: "starting", updatedAt: Date.now() } : item) };
+  });
   await startManagedSession(id);
 }
 
@@ -85,6 +89,7 @@ export async function syncManagedSessionStatusBars(): Promise<void> {
 export async function forkManagedSession(sourceId: string, input: ForkInput = {}): Promise<ManagedSession> {
   const registry = await loadRegistry();
   const source = findSession(registry, sourceId);
+  if (isSubagentSession(source)) throw new Error(`Cannot fork subagent row: ${source.title}`);
   const sourceFile = await savedSessionFile(source);
   let record = createSessionRecord({
     cwd: source.cwd,
@@ -93,9 +98,12 @@ export async function forkManagedSession(sourceId: string, input: ForkInput = {}
     additionalCwds: source.additionalCwds,
   });
   record = await ensureMultiRepoWorkspace(record);
-  record.order = nextOrderInGroup(registry.sessions, record.group);
-  registry.sessions.push(record);
-  await saveRegistry(registry);
+  await updateRegistry((latest) => {
+    const latestSource = findSession(latest, sourceId);
+    if (isSubagentSession(latestSource)) throw new Error(`Cannot fork subagent row: ${latestSource.title}`);
+    record.order = nextOrderInGroup(latest.sessions, record.group);
+    return { ...latest, sessions: [...latest.sessions, record] };
+  });
   const piArgs = buildPiArgs({ extensionPath: extensionPath(), forkFrom: sourceFile });
   await newSession({
     name: record.tmuxSession,

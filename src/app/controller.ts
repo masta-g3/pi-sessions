@@ -1,5 +1,6 @@
-import { loadRegistry, normalizeGroup, renameGroup as renameRegistryGroup, saveRegistry } from "../core/registry.js";
+import { loadRegistry, normalizeGroup, renameGroup as renameRegistryGroup, saveRegistry, updateRegistry } from "../core/registry.js";
 import { assignGroupOrder, nextOrderInGroup, orderedSessions } from "../core/session-order.js";
+import { orderedSessionRows, isSubagentSession } from "../core/session-tree.js";
 import { applyComputedStatus, computeStatus, markAcknowledged, readHeartbeat } from "../core/status.js";
 import { capturePane, sessionExists } from "../core/tmux.js";
 import type { SessionsRegistry, ManagedSession } from "../core/types.js";
@@ -33,8 +34,11 @@ export class SessionsController {
       const updated = applyComputedStatus(session, computed, now, heartbeat);
       sessions.push(updated);
     }
-    this.registry = { ...this.registry, sessions };
-    await saveRegistry(this.registry);
+    const updatedById = new Map(sessions.map((session) => [session.id, session]));
+    this.registry = await updateRegistry((latest) => ({
+      ...latest,
+      sessions: latest.sessions.map((session) => updatedById.get(session.id) ?? session),
+    }));
   }
 
   async refreshPreview(lines = 160): Promise<void> {
@@ -86,7 +90,11 @@ export class SessionsController {
     const order = selected && selected.group !== normalized ? nextOrderInGroup(this.registry.sessions, normalized) : selected?.order;
     this.registry = {
       ...this.registry,
-      sessions: this.registry.sessions.map((session) => session.id === id ? { ...session, group: normalized, order, updatedAt: now } : session),
+      sessions: this.registry.sessions.map((session) => {
+        if (session.id === id) return { ...session, group: normalized, order, updatedAt: now };
+        if (selected && !isSubagentSession(selected) && session.parentId === id) return { ...session, group: normalized, updatedAt: now };
+        return session;
+      }),
     };
     await saveRegistry(this.registry);
   }
@@ -94,8 +102,8 @@ export class SessionsController {
   async reorderSelected(delta: -1 | 1): Promise<void> {
     if (this.filter) return;
     const selected = this.selected();
-    if (!selected) return;
-    const group = orderedSessions(this.registry.sessions).filter((session) => session.group === selected.group);
+    if (!selected || isSubagentSession(selected)) return;
+    const group = orderedSessions(this.registry.sessions).filter((session) => session.group === selected.group && !isSubagentSession(session));
     const index = group.findIndex((session) => session.id === selected.id);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= group.length) return;
@@ -143,13 +151,5 @@ function keepSelection(sessions: ManagedSession[], selectedId: string | undefine
 }
 
 function visibleSessions(sessions: ManagedSession[], filter: string | undefined): ManagedSession[] {
-  const value = filter?.toLowerCase();
-  const visible = value
-    ? sessions.filter((session) => [session.title, session.group, basename(session.cwd), ...(session.additionalCwds ?? []).map(basename), session.status].some((text) => text.toLowerCase().includes(value)))
-    : sessions;
-  return orderedSessions(visible);
-}
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
+  return orderedSessionRows(sessions, filter);
 }

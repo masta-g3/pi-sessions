@@ -229,6 +229,10 @@ export class SessionsView implements Component {
   private startForkDialog() {
     const selected = this.controller.selected();
     if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows cannot be forked";
+      return;
+    }
     this.clearPendingRestart();
     this.mode = "fork";
     this.forkForm = createForm<"group" | "title">([
@@ -241,6 +245,10 @@ export class SessionsView implements Component {
   private startGroupDialog() {
     const selected = this.controller.selected();
     if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows follow their parent group";
+      return;
+    }
     this.clearPendingRestart();
     this.mode = "group";
     this.moveGroupForm = createForm<"group">([
@@ -252,6 +260,10 @@ export class SessionsView implements Component {
   private startRenameSessionDialog() {
     const selected = this.controller.selected();
     if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows cannot be renamed";
+      return;
+    }
     this.clearPendingRestart();
     this.mode = "rename";
     this.renameSessionForm = createForm<"title">([
@@ -263,6 +275,10 @@ export class SessionsView implements Component {
   private startRenameGroupDialog() {
     const selected = this.controller.selected();
     if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows cannot rename groups";
+      return;
+    }
     this.clearPendingRestart();
     this.mode = "groupRename";
     this.renameGroupFrom = selected.group;
@@ -336,6 +352,10 @@ export class SessionsView implements Component {
       this.message = "clear filter to reorder";
       return;
     }
+    if (this.controller.selected()?.kind === "subagent") {
+      this.message = "subagent rows follow their parent order";
+      return;
+    }
     const reorder = this.actions.reorderSelected;
     this.runAction(() => reorder ? reorder(delta) : this.controller.reorderSelected(delta), "reordering session...");
   }
@@ -343,6 +363,10 @@ export class SessionsView implements Component {
   private restartSelected() {
     const selected = this.controller.selected();
     if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows cannot be restarted here";
+      return;
+    }
     const now = this.actions.now?.() ?? Date.now();
     if (this.pendingRestart?.sessionId === selected.id && this.pendingRestart.expiresAt > now) {
       this.pendingRestart = undefined;

@@ -1,4 +1,5 @@
 import { groupOrder, orderedSessions } from "../core/session-order.js";
+import { orderedSessionRows, sessionDepth } from "../core/session-tree.js";
 import type { ManagedSession, SessionStatus } from "../core/types.js";
 
 export interface RenderSession {
@@ -16,6 +17,12 @@ export interface RenderSession {
   error?: string;
   sessionFile?: string;
   enabledMcpServers: string[];
+  kind: "main" | "subagent";
+  depth: number;
+  parentId?: string;
+  agentName?: string;
+  taskPreview?: string;
+  resultSummary?: string;
 }
 
 export interface RenderGroup {
@@ -48,10 +55,9 @@ export interface BuildRenderModelInput {
 }
 
 export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
-  const filter = input.filter?.trim().toLowerCase();
-  const visible = orderedSessions(filter ? input.sessions.filter((session) => matchesFilter(session, filter)) : input.sessions);
+  const visible = orderedSessionRows(input.sessions, input.filter);
   const selectedId = pickSelectedId(visible, input.selectedId);
-  const mapped = visible.map((session) => toRenderSession(session, session.id === selectedId));
+  const mapped = visible.map((session) => toRenderSession(session, session.id === selectedId, input.sessions));
   const groupsByName = new Map<string, RenderSession[]>();
   for (const session of mapped) {
     const group = groupsByName.get(session.group) ?? [];
@@ -111,12 +117,7 @@ function pickSelectedId(sessions: ManagedSession[], selectedId: string | undefin
   return sessions[0]?.id;
 }
 
-function matchesFilter(session: ManagedSession, filter: string): boolean {
-  return [session.title, session.group, basename(session.cwd), ...(session.additionalCwds ?? []).map(basename), session.status]
-    .some((value) => value.toLowerCase().includes(filter));
-}
-
-function toRenderSession(session: ManagedSession, selected: boolean): RenderSession {
+function toRenderSession(session: ManagedSession, selected: boolean, sessions: ManagedSession[]): RenderSession {
   const displayStatus = displayStatusFor(session.status);
   return {
     id: session.id,
@@ -133,16 +134,18 @@ function toRenderSession(session: ManagedSession, selected: boolean): RenderSess
     error: session.error,
     sessionFile: session.sessionFile,
     enabledMcpServers: session.enabledMcpServers ?? [],
+    kind: session.kind ?? "main",
+    depth: sessionDepth(session, sessions),
+    parentId: session.parentId,
+    agentName: session.agentName,
+    taskPreview: session.taskPreview,
+    resultSummary: session.resultSummary,
   };
 }
 
 function displayStatusFor(status: SessionStatus): RenderSession["displayStatus"] {
   if (status === "starting") return "running";
   return status;
-}
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
 }
 
 function symbolFor(status: RenderSession["displayStatus"]): string {

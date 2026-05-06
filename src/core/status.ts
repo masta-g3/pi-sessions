@@ -53,6 +53,11 @@ export function applyComputedStatus(session: ManagedSession, computed: ComputedS
     error: computed.error,
     sessionFile: heartbeat?.piSessionFile ?? session.sessionFile,
     piSessionId: heartbeat?.piSessionId ?? session.piSessionId,
+    kind: heartbeat?.kind ?? session.kind,
+    parentId: heartbeat?.parentId ?? session.parentId,
+    agentName: heartbeat?.agentName ?? session.agentName,
+    taskPreview: heartbeat?.taskPreview ?? session.taskPreview,
+    resultPath: heartbeat?.resultPath ?? session.resultPath,
     updatedAt: now,
   };
 }

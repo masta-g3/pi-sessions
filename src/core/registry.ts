@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { basename, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
 import { readJsonOr, writeJsonAtomic } from "./atomic-json.js";
 import { multiRepoWorkspaceDir, normalizeAdditionalCwds } from "./multi-repo.js";
 import { registryPath } from "./paths.js";
@@ -19,14 +20,37 @@ export async function saveRegistry(registry: SessionsRegistry, path = registryPa
   await writeJsonAtomic(path, registry);
 }
 
+export async function withRegistryLock<T>(path: string, fn: () => Promise<T>): Promise<T> {
+  await mkdir(dirname(path), { recursive: true });
+  const lockDir = join(dirname(path), "registry.lock");
+  const started = Date.now();
+  while (true) {
+    try {
+      await mkdir(lockDir);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (Date.now() - started > 5000) throw new Error(`Timed out waiting for registry lock: ${lockDir}`);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await rm(lockDir, { recursive: true, force: true });
+  }
+}
+
 export async function updateRegistry(
   mutate: (registry: SessionsRegistry) => SessionsRegistry | void,
   path = registryPath(),
 ): Promise<SessionsRegistry> {
-  const registry = await loadRegistry(path);
-  const next = mutate(registry) ?? registry;
-  await saveRegistry(next, path);
-  return next;
+  return withRegistryLock(path, async () => {
+    const registry = await loadRegistry(path);
+    const next = mutate(registry) ?? registry;
+    await saveRegistry(next, path);
+    return next;
+  });
 }
 
 export interface NewSessionInput {

@@ -45,6 +45,11 @@ export default function piSessionsExtension(pi: ExtensionAPI) {
       stateSince,
       message,
       updatedAt: Date.now(),
+      kind: process.env.PI_SESSIONS_KIND as "subagent" | undefined,
+      parentId: process.env.PI_SESSIONS_PARENT_ID,
+      agentName: process.env.PI_SUBAGENT_AGENT,
+      taskPreview: process.env.PI_SUBAGENT_TASK_PREVIEW,
+      resultPath: process.env.PI_SUBAGENT_RESULT_PATH,
     } satisfies Heartbeat, null, 2)}\n`, "utf8");
   }
 

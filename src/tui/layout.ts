@@ -87,10 +87,12 @@ function renderDetails(session: RenderSession | undefined, width: number, previe
   if (!session) return ["No session selected"];
   const lines = [
     twoColumn(styles.accent(session.title), styles.status(session.displayStatus, `${session.displayStatus} ${session.symbol}`), width),
+    session.kind === "subagent" ? `agent     ${session.agentName ?? "subagent"}` : undefined,
+    session.taskPreview ? `task      ${session.taskPreview}` : undefined,
     `cwd       ${session.cwd}`,
     `repos     ${session.repoCount}`,
     `group     ${session.group}`,
-  ];
+  ].filter((line): line is string => Boolean(line));
   for (const cwd of session.additionalCwds) lines.push(`extra     ${cwd}`);
   if (session.workspaceCwd) lines.push(`runtime   ${session.workspaceCwd}`);
   if (session.sessionFile) lines.push(`session   ${session.sessionFile}`);
@@ -105,9 +107,11 @@ function renderDetails(session: RenderSession | undefined, width: number, previe
 function renderSessionRow(session: RenderSession, width: number, styles: LayoutStyles): string {
   const prefix = session.selected ? styles.accent("▶") : session.status === "stopped" ? styles.dim("·") : " ";
   const symbol = styles.status(session.displayStatus, session.symbol);
-  const title = session.status === "stopped" ? styles.dim(session.title) : session.title;
-  const repoBadge = session.repoCount > 1 ? styles.dim(` [${session.repoCount} repos]`) : "";
-  return truncate(`${prefix} ${symbol} ${title}${repoBadge}`, width);
+  const titleText = session.kind === "subagent" ? (session.agentName ?? "subagent") : session.title;
+  const title = session.status === "stopped" ? styles.dim(titleText) : titleText;
+  const repoBadge = session.repoCount > 1 && session.kind !== "subagent" ? styles.dim(` [${session.repoCount} repos]`) : "";
+  const indent = session.depth > 0 ? styles.dim("  ↳ ") : "";
+  return truncate(`${prefix} ${indent}${symbol} ${title}${repoBadge}`, width);
 }
 
 export interface FormField {

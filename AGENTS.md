@@ -11,3 +11,4 @@
 - The extension can load via both `pi install` and managed-session `--extension`; keep registration idempotent and clear active guards on `session_shutdown`.
 - Keep package-global state under `PI_SESSIONS_DIR` or `<PI_CODING_AGENT_DIR>/pi-sessions`; do not use `<PI_CODING_AGENT_DIR>/sessions`, which is Pi's own conversation session directory. Multi-repo session workspaces live under `<PI_SESSIONS_DIR>/workspaces/<session-id>` and contain symlinks only; do not add worktree management unless explicitly requested.
 - For session deletion, use `src/app/delete-session.ts`, pause any active refresh loop first, and never delete Pi conversation/session files.
+- Optional `kind: "subagent"` registry rows are dashboard compatibility metadata owned by `pi-tmux-subagents`: keep them visually nested and short in the left pane (agent name only), keep task text in details/filtering, and do not enable normal session lifecycle/group/order actions on them.

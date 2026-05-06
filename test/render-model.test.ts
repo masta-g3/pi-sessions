@@ -124,3 +124,36 @@ test("selection retention chooses next sibling without jumping groups", () => {
   const next = [session("a", "default", "idle"), session("c", "work", "idle")];
   assert.equal(retainSelectionAfterRefresh(previous, next, "b"), "a");
 });
+
+test("subagent rows render directly under their parent", () => {
+  const parent = session("parent", "default", "idle", "api");
+  const child = {
+    ...session("child", "default", "running", "scout child"),
+    kind: "subagent" as const,
+    parentId: "parent",
+    agentName: "scout",
+    taskPreview: "read auth.ts",
+  };
+  const sibling = session("sibling", "default", "idle", "web");
+  const model = buildRenderModel({ sessions: [parent, sibling, child], width: 120 });
+
+  assert.deepEqual(model.groups[0]?.sessions.map((item) => item.id), ["parent", "child", "sibling"]);
+  assert.equal(model.groups[0]?.sessions[1]?.depth, 1);
+  const lines = renderSessions(model).join("\n");
+  assert.match(lines, /↳ .*scout/);
+  assert.doesNotMatch(lines, /read auth\.ts/);
+});
+
+test("filtering by child includes parent context", () => {
+  const parent = session("parent", "default", "idle", "api");
+  const child = {
+    ...session("child", "default", "running", "scout child"),
+    kind: "subagent" as const,
+    parentId: "parent",
+    agentName: "scout",
+    taskPreview: "unique child task",
+  };
+  const model = buildRenderModel({ sessions: [parent, child, session("other", "default", "idle", "web")], width: 120, filter: "unique" });
+
+  assert.deepEqual(model.groups[0]?.sessions.map((item) => item.id), ["parent", "child"]);
+});

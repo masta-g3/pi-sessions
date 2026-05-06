@@ -17,6 +17,12 @@ export interface ManagedSession {
   updatedAt: number;
   error?: string;
   enabledMcpServers?: string[];
+  kind?: "main" | "subagent";
+  parentId?: string;
+  agentName?: string;
+  taskPreview?: string;
+  resultPath?: string;
+  resultSummary?: string;
 }
 
 export interface SessionsRegistry {
@@ -33,6 +39,11 @@ export interface Heartbeat {
   stateSince: number;
   message?: string;
   updatedAt: number;
+  kind?: "main" | "subagent";
+  parentId?: string;
+  agentName?: string;
+  taskPreview?: string;
+  resultPath?: string;
 }
 
 export interface TmuxState {

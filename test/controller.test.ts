@@ -121,3 +121,39 @@ async function withTempSessionsDir(fn: () => Promise<void>): Promise<void> {
     else process.env.PI_SESSIONS_DIR = oldDir;
   }
 }
+
+test("moving parent group moves direct child rows too", async () => {
+  await withTempSessionsDir(async () => {
+    const controller = new SessionsController({
+      version: 1,
+      sessions: [
+        session("idle", { id: "parent", title: "parent", group: "default", order: 0 }),
+        session("running", { id: "child", title: "child", group: "default", kind: "subagent", parentId: "parent", agentName: "scout" }),
+      ],
+    });
+
+    await controller.moveSessionToGroup("parent", "work");
+
+    assert.equal(controller.snapshot().registry.sessions.find((item) => item.id === "parent")?.group, "work");
+    assert.equal(controller.snapshot().registry.sessions.find((item) => item.id === "child")?.group, "work");
+  });
+});
+
+test("reorderSelected ignores subagent rows", async () => {
+  await withTempSessionsDir(async () => {
+    const controller = new SessionsController({
+      version: 1,
+      sessions: [
+        session("idle", { id: "parent", title: "parent", order: 0 }),
+        session("running", { id: "child", title: "child", kind: "subagent", parentId: "parent", agentName: "scout" }),
+        session("idle", { id: "sibling", title: "sibling", order: 1 }),
+      ],
+    });
+
+    controller.move(1);
+    assert.equal(controller.snapshot().selectedId, "child");
+    await controller.reorderSelected(1);
+
+    assert.deepEqual(controller.snapshot().registry.sessions.filter((item) => item.kind !== "subagent").map((item) => [item.id, item.order]), [["parent", 0], ["sibling", 1]]);
+  });
+});
