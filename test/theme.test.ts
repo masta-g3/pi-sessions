@@ -98,6 +98,25 @@ test("renderForm renders cwd start-truncated and errors visible at narrow widths
   assert.doesNotMatch(text, /^\/Users\/manager.*…/m);
 });
 
+
+test("renderForm renders optional section headers width-safely", () => {
+  const lines = renderForm({
+    title: "New session",
+    fields: [
+      { key: "repo:0", label: "★ primary", value: "/tmp/api", section: "repos", truncate: "start" },
+      { key: "group", label: "group", value: "api" },
+      { key: "title", label: "title", value: "api" },
+    ],
+    focus: "repo:0",
+    footer: "tab next · alt-a add repo · enter create · esc cancel",
+  }, 42, darkTheme);
+
+  const text = stripAnsi(lines.join("\n"));
+  assert.match(text, /repos/);
+  assert.match(text, /★ primary/);
+  for (const line of lines) assert.equal(stripAnsi(line).length, 42, stripAnsi(line));
+});
+
 test("renderForm keeps stable width and marks one focused field", () => {
   const widths = [28, 60, 100];
   for (const width of widths) {
@@ -106,7 +125,7 @@ test("renderForm keeps stable width and marks one focused field", () => {
       fields: [
         { key: "cwd", label: "cwd", value: "/tmp/api", hint: "current dir" },
         { key: "group", label: "group", value: "api", hint: "defaults to cwd basename" },
-        { key: "title", label: "title", value: "black-aleph", hint: "random two-word slug" },
+        { key: "title", label: "title", value: "api", hint: "defaults to cwd basename" },
       ],
       focus: "cwd",
       footer: "tab next · enter create · esc cancel",

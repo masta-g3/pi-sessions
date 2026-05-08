@@ -1,4 +1,3 @@
-import { randomInt } from "node:crypto";
 import { basename } from "node:path";
 import { charLength } from "./text-input.js";
 import {
@@ -20,7 +19,8 @@ import {
   type FormState,
 } from "./form.js";
 
-export type FieldKey = "cwd" | "repo2" | "repo3" | "group" | "title";
+export type RepoFieldKey = `repo:${number}`;
+export type FieldKey = RepoFieldKey | "group" | "title";
 
 export interface Field extends FormField<FieldKey> {
   suggestions?: string[];
@@ -29,6 +29,8 @@ export interface Field extends FormField<FieldKey> {
 
 export interface NewFormState extends FormState<FieldKey, Field> {
   groupTouched: boolean;
+  titleTouched: boolean;
+  knownCwds: string[];
 }
 
 export interface NewFormContext {
@@ -36,12 +38,7 @@ export interface NewFormContext {
   group?: string;
   knownCwds?: string[];
   additionalCwds?: string[];
-  titleGenerator?: () => string;
 }
-
-const ORDER: FieldKey[] = ["cwd", "repo2", "repo3", "group", "title"];
-const SESSION_ADJECTIVES = ["amber", "black", "blue", "bright", "calm", "crimson", "dark", "gold", "green", "quiet", "red", "silver", "swift", "violet", "white"] as const;
-const SESSION_NOUNS = ["aleph", "atlas", "beacon", "cipher", "comet", "delta", "ember", "falcon", "lambda", "nova", "orbit", "pixel", "quartz", "vector", "zenith"] as const;
 
 export function moveFocus(state: NewFormState, delta: number): NewFormState {
   return { ...state, focus: moveFormFocus(state, delta).focus };
@@ -93,45 +90,47 @@ export function deleteWord(state: NewFormState): NewFormState {
 
 export function createNewForm(ctx: NewFormContext): NewFormState {
   const cwd = ctx.cwd;
-  const suggestions = uniqueWithFirst(cwd, ctx.knownCwds ?? []);
+  const knownCwds = uniqueWithFirst(cwd, ctx.knownCwds ?? []);
   const contextGroup = ctx.group?.trim();
-  const group = contextGroup || basename(cwd) || "default";
-  const title = ctx.titleGenerator?.() ?? randomSessionTitle();
-  const repo2 = ctx.additionalCwds?.[0] ?? "";
-  const repo3 = ctx.additionalCwds?.[1] ?? "";
+  const group = contextGroup || projectBasename(cwd) || "default";
+  const title = projectBasename(cwd) || "pi-session";
+  const fields = buildFields([cwd, ...(ctx.additionalCwds ?? [])], group, title, knownCwds);
   return {
-    ...createForm<FieldKey, Field>([
-      {
-        key: "cwd",
-        label: "primary cwd",
-        value: cwd,
-        hint: cwdHint(suggestions.length),
-        suggestions,
-        cycleIndex: 0,
-        truncate: "start",
-      },
-      { key: "repo2", label: "repo 2", value: repo2, hint: "optional extra repo · symlinked into workspace", truncate: "start" },
-      { key: "repo3", label: "repo 3", value: repo3, hint: "optional extra repo · symlinked into workspace", truncate: "start" },
-      { key: "group", label: "group", value: group, hint: contextGroup ? "selected session group" : "defaults to primary cwd basename" },
-      { key: "title", label: "title", value: title, hint: "random two-word slug" },
-    ], ORDER[0]),
-    order: ORDER,
+    ...createForm<FieldKey, Field>(fields, "repo:0"),
     groupTouched: false,
+    titleTouched: false,
+    knownCwds,
   };
 }
 
+export function addRepo(state: NewFormState): NewFormState {
+  const values = repoKeys(state).map((key) => state.fields[key].value);
+  const focusIndex = isRepoKey(state.focus) ? repoIndex(state.focus) : values.length - 1;
+  const insertAt = Math.max(1, Math.min(focusIndex + 1, values.length));
+  const nextValues = [...values.slice(0, insertAt), "", ...values.slice(insertAt)];
+  return rebuildRepoFields(state, nextValues, `repo:${insertAt}`);
+}
+
+export function removeFocusedRepo(state: NewFormState): NewFormState {
+  if (!isRepoKey(state.focus) || isPrimaryRepoKey(state.focus)) return state;
+  const removedIndex = repoIndex(state.focus);
+  const values = repoKeys(state).map((key) => state.fields[key].value).filter((_, index) => index !== removedIndex);
+  const focusIndex = Math.max(0, Math.min(removedIndex - 1, values.length - 1));
+  return rebuildRepoFields(state, values, `repo:${focusIndex}`);
+}
+
 export function cycleCwdSuggestion(state: NewFormState, delta: number): NewFormState {
-  if (state.focus !== "cwd") return state;
-  const cwd = state.fields.cwd;
-  const suggestions = cwd.suggestions ?? [];
+  if (!isRepoKey(state.focus)) return state;
+  const field = state.fields[state.focus];
+  const suggestions = field.suggestions ?? [];
   if (suggestions.length === 0) return state;
-  const current = cwd.cycleIndex ?? 0;
+  const current = field.cycleIndex ?? (delta > 0 ? -1 : 0);
   const next = (current + delta + suggestions.length) % suggestions.length;
-  const nextValue = suggestions[next] ?? cwd.value;
+  const nextValue = suggestions[next] ?? field.value;
   return applyEdit({
     ...state,
-    fields: { ...state.fields, cwd: { ...cwd, cycleIndex: next } },
-  }, "cwd", nextValue);
+    fields: { ...state.fields, [state.focus]: { ...field, cycleIndex: next } },
+  }, state.focus, nextValue);
 }
 
 export interface ValidationResult {
@@ -143,12 +142,13 @@ export function validateNewForm(state: NewFormState): ValidationResult {
   const fields = { ...state.fields };
   let firstInvalid: FieldKey | undefined;
   for (const key of state.order) {
-    const trimmed = fields[key].value.trim();
-    if (!trimmed && key !== "repo2" && key !== "repo3") {
-      fields[key] = { ...fields[key], error: `${fields[key].label} is required` };
+    const field = fields[key];
+    const trimmed = field.value.trim();
+    if (!trimmed && !isOptionalRepoKey(key)) {
+      fields[key] = { ...field, error: `${field.label} is required` };
       firstInvalid ??= key;
     } else {
-      fields[key] = { ...fields[key], error: undefined, value: trimmed, cursor: Math.min(fields[key].cursor ?? charLength(trimmed), charLength(trimmed)) };
+      fields[key] = { ...field, error: undefined, value: trimmed, cursor: Math.min(field.cursor ?? charLength(trimmed), charLength(trimmed)) };
     }
   }
   if (firstInvalid) return { ok: false, state: { ...state, fields, focus: firstInvalid } };
@@ -156,13 +156,22 @@ export function validateNewForm(state: NewFormState): ValidationResult {
 }
 
 export function submission(state: NewFormState): { cwd: string; group: string; title: string; additionalCwds?: string[] } {
-  const additionalCwds = [state.fields.repo2.value, state.fields.repo3.value].map((item) => item.trim()).filter(Boolean);
+  const repos = repoKeys(state).map((key) => state.fields[key].value.trim());
+  const additionalCwds = repos.slice(1).filter(Boolean);
   return {
-    cwd: state.fields.cwd.value.trim(),
+    cwd: repos[0] ?? "",
     group: state.fields.group.value.trim(),
     title: state.fields.title.value.trim(),
     ...(additionalCwds.length ? { additionalCwds } : {}),
   };
+}
+
+export function isRepoKey(key: FieldKey): key is RepoFieldKey {
+  return key.startsWith("repo:");
+}
+
+export function isPrimaryRepoKey(key: FieldKey): boolean {
+  return key === "repo:0";
 }
 
 function applyEdit(state: NewFormState, key: FieldKey, nextValue: string): NewFormState {
@@ -175,25 +184,73 @@ function afterFocusedEdit(previous: NewFormState, next: NewFormState): NewFormSt
 
 function afterFieldEdit(previous: NewFormState, next: NewFormState, key: FieldKey): NewFormState {
   const fields = { ...next.fields };
-  if (key === "cwd") {
-    const cwd = fields.cwd;
-    fields.cwd = { ...cwd, cycleIndex: matchSuggestionIndex(cwd.value, cwd.suggestions) };
+  if (isRepoKey(key)) {
+    const field = fields[key];
+    fields[key] = { ...field, cycleIndex: matchSuggestionIndex(field.value, field.suggestions) };
   }
+
   let groupTouched = previous.groupTouched;
+  let titleTouched = previous.titleTouched;
   if (key === "group") groupTouched = true;
-  else if (key === "cwd" && !groupTouched) {
-    const group = basename(fields.cwd.value) || "default";
-    fields.group = { ...fields.group, value: group, cursor: charLength(group) };
+  if (key === "title") titleTouched = true;
+
+  if (isPrimaryRepoKey(key)) {
+    const primary = fields["repo:0"].value;
+    if (!groupTouched) {
+      const group = projectBasename(primary) || "default";
+      fields.group = { ...fields.group, value: group, cursor: charLength(group) };
+    }
+    if (!titleTouched) {
+      const title = projectBasename(primary) || "pi-session";
+      fields.title = { ...fields.title, value: title, cursor: charLength(title) };
+    }
   }
-  return { ...next, fields, groupTouched };
+
+  return { ...next, fields, groupTouched, titleTouched };
 }
 
-export function randomSessionTitle(): string {
-  return `${randomItem(SESSION_ADJECTIVES)}-${randomItem(SESSION_NOUNS)}`;
+function rebuildRepoFields(state: NewFormState, repoValues: string[], focus: FieldKey): NewFormState {
+  const group = state.fields.group.value;
+  const title = state.fields.title.value;
+  const fields = buildFields(repoValues, group, title, state.knownCwds);
+  return {
+    ...state,
+    ...createForm<FieldKey, Field>(fields, focus),
+  };
 }
 
-function randomItem(items: readonly string[]): string {
-  return items[randomInt(items.length)] ?? items[0] ?? "session";
+function buildFields(repoValues: string[], group: string, title: string, suggestions: string[]): Field[] {
+  const repos = repoValues.length ? repoValues : [""];
+  return [
+    ...repos.map((value, index) => repoField(index, value, suggestions)),
+    { key: "group" as const, label: "group", value: group, hint: "defaults to primary cwd basename" },
+    { key: "title" as const, label: "title", value: title, hint: "defaults to primary cwd basename" },
+  ];
+}
+
+function repoField(index: number, value: string, suggestions: string[]): Field {
+  return {
+    key: `repo:${index}`,
+    label: index === 0 ? "★ primary" : "+ repo",
+    value,
+    hint: index === 0 ? cwdHint(suggestions.length) : undefined,
+    suggestions,
+    cycleIndex: matchSuggestionIndex(value, suggestions),
+    section: index === 0 ? "repos" : undefined,
+    truncate: "start",
+  };
+}
+
+function repoKeys(state: NewFormState): RepoFieldKey[] {
+  return state.order.filter(isRepoKey);
+}
+
+function repoIndex(key: RepoFieldKey): number {
+  return Number(key.slice("repo:".length));
+}
+
+function isOptionalRepoKey(key: FieldKey): boolean {
+  return isRepoKey(key) && !isPrimaryRepoKey(key);
 }
 
 function matchSuggestionIndex(value: string, suggestions: string[] | undefined): number | undefined {
@@ -213,7 +270,11 @@ function uniqueWithFirst(first: string, items: string[]): string[] {
   return out;
 }
 
+function projectBasename(path: string): string {
+  return basename(path.trim());
+}
+
 function cwdHint(suggestionCount: number): string {
-  if (suggestionCount > 1) return `default cwd · ctrl-n cycles ${suggestionCount} known cwds`;
+  if (suggestionCount > 1) return `default cwd · ctrl-n/p cycles ${suggestionCount} known cwds`;
   return "default cwd";
 }

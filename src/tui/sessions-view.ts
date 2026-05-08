@@ -6,6 +6,7 @@ import { renderSessions, renderDialog, renderForm } from "./layout.js";
 import { stripAnsi, styleToken, type SessionsTheme } from "./theme.js";
 import { movePickerSelection, renderTwoColumnPicker, togglePickerItem, type PickerState, type PickerItem } from "./two-column-picker.js";
 import {
+  addRepo,
   appendChar,
   backspace,
   backspaceWord,
@@ -19,6 +20,7 @@ import {
   moveCursorWordLeft,
   moveCursorWordRight,
   moveFocus,
+  removeFocusedRepo,
   submission,
   validateNewForm,
   type NewFormContext,
@@ -524,6 +526,14 @@ export class SessionsView implements Component {
       this.newForm = undefined;
       return;
     }
+    if (matchesKey(data, Key.alt("a"))) {
+      this.newForm = addRepo(this.newForm);
+      return;
+    }
+    if (matchesKey(data, Key.alt("x"))) {
+      this.newForm = removeFocusedRepo(this.newForm);
+      return;
+    }
     if (matchesKey(data, Key.tab) || matchesKey(data, Key.down)) {
       this.newForm = moveFocus(this.newForm, 1);
       return;
@@ -647,7 +657,7 @@ export class SessionsView implements Component {
       fields: this.newForm.order.map((key) => this.newForm!.fields[key]),
       focus: this.newForm.focus,
       footer: newFormFooter(this.newForm),
-      narrowFooter: "tab · enter · esc",
+      narrowFooter: "tab · alt-a · enter · esc",
     }, width, this.theme);
   }
 
@@ -812,9 +822,11 @@ function isPrintable(data: string): boolean {
 
 function newFormFooter(state: NewFormState): string {
   const focus = state.fields[state.focus];
-  const cwdHasSuggestions = state.focus === "cwd" && (focus.suggestions?.length ?? 0) > 1;
-  const parts = ["tab/↓ next", "shift-tab/↑ prev", "←→ edit"];
-  if (cwdHasSuggestions) parts.push("ctrl-n/p cycle");
+  const repoHasSuggestions = state.focus.startsWith("repo:") && (focus.suggestions?.length ?? 0) > 1;
+  const removableRepo = state.focus.startsWith("repo:") && state.focus !== "repo:0";
+  const parts = ["tab/↓ next", "shift-tab/↑ prev", "←→ edit", "alt-a add repo"];
+  if (removableRepo) parts.push("alt-x remove extra");
+  if (repoHasSuggestions) parts.push("ctrl-n/p cycle");
   parts.push("enter create", "esc cancel");
   return parts.join(" · ");
 }

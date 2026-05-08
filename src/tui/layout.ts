@@ -121,6 +121,7 @@ export interface FormField {
   cursor?: number;
   hint?: string;
   error?: string;
+  section?: string;
   truncate?: "end" | "start";
 }
 
@@ -139,16 +140,19 @@ export function renderForm(spec: FormSpec, width: number, theme?: SessionsTheme)
   const labelWidth = Math.max(...spec.fields.map((field) => displayWidth(field.label)), 5);
   const valueWidth = inner - labelWidth - 4;
   const body: string[] = [styles.accent(spec.title), styles.border("─".repeat(inner)), ""];
+  let previousSection: string | undefined;
   for (const field of spec.fields) {
+    if (field.section && field.section !== previousSection) {
+      body.push(styles.muted(field.section));
+      previousSection = field.section;
+    }
     const focused = field.key === spec.focus;
     const caret = focused ? styles.accent("▎") : " ";
     const label = focused ? field.label : styles.muted(field.label);
     const value = focused ? styles.accent(renderCursorValue(field.value, field.cursor, valueWidth, field.truncate)) : truncateValue(field.value, valueWidth, field.truncate);
     body.push(`${caret} ${pad(label, labelWidth)}  ${value}`);
-    if (showHints || field.error) {
-      const hintText = field.error ? styles.error(field.error) : (field.hint ? styles.dim(field.hint) : "");
-      body.push(hintText ? `  ${pad("", labelWidth)}  ${truncate(hintText, valueWidth)}` : "");
-    }
+    const hintText = field.error ? styles.error(field.error) : (showHints && field.hint ? styles.dim(field.hint) : "");
+    if (hintText) body.push(`  ${pad("", labelWidth)}  ${truncate(hintText, valueWidth)}`);
     body.push("");
   }
   body.push(styles.border("─".repeat(inner)));

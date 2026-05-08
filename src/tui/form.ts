@@ -7,6 +7,7 @@ export interface FormField<K extends string = string> {
   cursor?: number;
   hint?: string;
   error?: string;
+  section?: string;
   truncate?: "end" | "start";
 }
 

@@ -18,7 +18,7 @@ function session(id: string, cwd: string, group: string, additionalCwds?: string
 }
 
 test("buildNewFormContext defaults to selected session cwd, group, and additional repos", () => {
-  const selected = session("api", "/repo/api", "backend", ["/repo/web", "/repo/shared"]);
+  const selected = session("api", "/repo/api", "backend", ["/repo/web", "/repo/shared", "/repo/docs"]);
   const context = buildNewFormContext({
     cwd: "/dashboard",
     sessions: [session("docs", "/repo/docs", "docs"), selected],
@@ -29,7 +29,7 @@ test("buildNewFormContext defaults to selected session cwd, group, and additiona
     cwd: "/repo/api",
     group: "backend",
     knownCwds: ["/repo/api", "/repo/docs", "/repo/shared", "/repo/web"],
-    additionalCwds: ["/repo/web", "/repo/shared"],
+    additionalCwds: ["/repo/web", "/repo/shared", "/repo/docs"],
   });
 });
 
