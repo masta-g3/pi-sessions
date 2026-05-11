@@ -28,7 +28,7 @@ test("buildNewFormContext defaults to selected session cwd, group, and additiona
   assert.deepEqual(context, {
     cwd: "/repo/api",
     group: "backend",
-    knownCwds: ["/repo/api", "/repo/docs", "/repo/shared", "/repo/web"],
+    knownCwds: ["/repo/api", "/dashboard", "/repo/web", "/repo/shared", "/repo/docs"],
     additionalCwds: ["/repo/web", "/repo/shared", "/repo/docs"],
   });
 });
@@ -42,6 +42,28 @@ test("buildNewFormContext falls back to dashboard cwd without selection", () => 
   assert.deepEqual(context, {
     cwd: "/dashboard",
     group: undefined,
-    knownCwds: ["/repo/api"],
+    knownCwds: ["/dashboard", "/repo/api"],
   });
+});
+
+test("buildNewFormContext includes history paths without sessions", () => {
+  const context = buildNewFormContext({
+    cwd: "/dashboard",
+    sessions: [],
+    historyCwds: ["/repo/api", "/repo/web"],
+  });
+
+  assert.deepEqual(context.knownCwds, ["/dashboard", "/repo/api", "/repo/web"]);
+});
+
+test("buildNewFormContext dedupes selected registry and history paths by rank", () => {
+  const selected = session("api", "/repo/api", "backend", ["/repo/web"]);
+  const context = buildNewFormContext({
+    cwd: "/dashboard",
+    sessions: [selected, session("docs", "/repo/docs", "docs")],
+    selected,
+    historyCwds: ["/repo/docs", "/repo/api", "/repo/cli"],
+  });
+
+  assert.deepEqual(context.knownCwds, ["/repo/api", "/dashboard", "/repo/web", "/repo/docs", "/repo/cli"]);
 });

@@ -39,3 +39,13 @@
   created_at: '2026-05-07'
   plan_file: docs/history/20260507_new-session-ux-001_dynamic_repo_form.md
   completed_at: '2026-05-07'
+- id: new-session-ux-002
+  status: done
+  description: Add a lightweight persistent recent repo picker for new session directory
+    selection, with schema ready for favorites.
+  priority: 2
+  depends_on: []
+  created_at: '2026-05-11'
+  completed_at: '2026-05-11'
+  epic: new-session-ux
+  plan_file: docs/history/20260511_new-session-ux-002_recent_repo_picker.md

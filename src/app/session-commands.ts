@@ -5,6 +5,7 @@ import { buildPiArgs } from "../core/pi-process.js";
 import { extensionPath } from "../core/extension-path.js";
 import { effectiveSessionCwd, ensureMultiRepoWorkspace } from "../core/multi-repo.js";
 import { sessionsStateDir } from "../core/paths.js";
+import { recordRepoUsage } from "../core/repo-history.js";
 import { createSessionRecord, loadRegistry, updateRegistry, upsertSession } from "../core/registry.js";
 import { nextOrderInGroup } from "../core/session-order.js";
 import { isSubagentSession } from "../core/session-tree.js";
@@ -33,6 +34,11 @@ export async function addManagedSession(input: SessionInput): Promise<ManagedSes
     return { ...registry, sessions: [...registry.sessions, record] };
   });
   await startManagedSession(record.id);
+  try {
+    await recordRepoUsage([record.cwd, ...(record.additionalCwds ?? [])]);
+  } catch {
+    // Repo history is a convenience cache; session creation already succeeded.
+  }
   return record;
 }
 

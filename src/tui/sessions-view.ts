@@ -22,10 +22,13 @@ import {
   moveCursorWordRight,
   moveFocus,
   removeFocusedRepo,
+  setRepoValue,
   submission,
   validateNewForm,
+  isRepoKey,
   type NewFormContext,
   type NewFormState,
+  type RepoFieldKey,
 } from "./new-form.js";
 import {
   appendChar as appendFormChar,
@@ -43,6 +46,7 @@ import {
   validateRequired,
   type FormState,
 } from "./form.js";
+import { createRepoPicker, moveRepoPickerSelection, renderRepoPicker, selectedRepoCwd, type RepoPickerState } from "./repo-picker.js";
 import { backspaceText, backspaceWord as backspaceTextWord, createTextInput, deleteText, deleteWord as deleteTextWord, insertText, moveCursor as moveTextCursor, moveCursorEnd as moveTextCursorEnd, moveCursorHome as moveTextCursorHome, moveCursorWordLeft as moveTextCursorWordLeft, moveCursorWordRight as moveTextCursorWordRight, type TextInputState } from "./text-input.js";
 
 export interface SessionDialogInput {
@@ -74,9 +78,11 @@ export interface SessionsViewActions {
 }
 
 export class SessionsView implements Component {
-  private mode: "normal" | "filter" | "help" | "new" | "fork" | "group" | "rename" | "groupRename" | "skills" | "mcp" | "delete" = "normal";
+  private mode: "normal" | "filter" | "help" | "new" | "repoPicker" | "fork" | "group" | "rename" | "groupRename" | "skills" | "mcp" | "delete" = "normal";
   private filterDraft: TextInputState = createTextInput();
   private newForm: NewFormState | undefined;
+  private repoPicker: RepoPickerState | undefined;
+  private repoPickerTarget: RepoFieldKey | undefined;
   private forkForm: FormState<"group" | "title"> | undefined;
   private moveGroupForm: FormState<"group"> | undefined;
   private renameSessionForm: FormState<"title"> | undefined;
@@ -103,6 +109,11 @@ export class SessionsView implements Component {
 
     if (this.mode === "new") {
       this.handleNewFormInput(data);
+      return;
+    }
+
+    if (this.mode === "repoPicker") {
+      this.handleRepoPickerInput(data);
       return;
     }
 
@@ -199,6 +210,7 @@ export class SessionsView implements Component {
     this.clearExpiredConfirmation();
     if (this.mode === "help") return renderHelp(width);
     if ((this.mode === "skills" || this.mode === "mcp") && this.picker) return renderTwoColumnPicker(this.picker, width, this.theme);
+    if (this.mode === "repoPicker" && this.repoPicker) return renderRepoPicker(this.repoPicker, width, this.theme);
     if (this.mode === "new" && this.newForm) return this.renderNewForm(width);
     if (this.mode === "fork") return this.renderSessionDialog(width);
     if (this.mode === "group") return this.renderGroupDialog(width);
@@ -572,6 +584,10 @@ export class SessionsView implements Component {
       this.newForm = removeFocusedRepo(this.newForm);
       return;
     }
+    if (matchesKey(data, Key.ctrl("o"))) {
+      this.startRepoPicker();
+      return;
+    }
     if (matchesKey(data, Key.tab) || matchesKey(data, Key.down)) {
       this.newForm = moveFocus(this.newForm, 1);
       return;
@@ -590,6 +606,44 @@ export class SessionsView implements Component {
     }
     const edited = editNewFormState(data, this.newForm);
     if (edited) this.newForm = edited;
+  }
+
+  private startRepoPicker() {
+    if (!this.newForm || !isRepoKey(this.newForm.focus)) return;
+    const choices = this.newForm.fields[this.newForm.focus].suggestions ?? [];
+    if (!choices.length) return;
+    this.mode = "repoPicker";
+    this.repoPicker = createRepoPicker(choices);
+    this.repoPickerTarget = this.newForm.focus;
+  }
+
+  private handleRepoPickerInput(data: string) {
+    if (!this.repoPicker) {
+      this.mode = this.newForm ? "new" : "normal";
+      return;
+    }
+    if (matchesKey(data, Key.escape)) {
+      this.mode = this.newForm ? "new" : "normal";
+      this.repoPicker = undefined;
+      this.repoPickerTarget = undefined;
+      return;
+    }
+    if (matchesKey(data, Key.down)) this.repoPicker = moveRepoPickerSelection(this.repoPicker, 1);
+    else if (matchesKey(data, Key.up)) this.repoPicker = moveRepoPickerSelection(this.repoPicker, -1);
+    else if (matchesKey(data, Key.enter) || matchesKey(data, Key.return) || data === "\r") this.applyRepoPickerSelection();
+    else {
+      const edited = editTextInput(data, this.repoPicker.filter);
+      if (edited) this.repoPicker = { ...this.repoPicker, filter: edited, selected: 0 };
+    }
+  }
+
+  private applyRepoPickerSelection() {
+    const cwd = this.repoPicker ? selectedRepoCwd(this.repoPicker) : undefined;
+    if (!cwd) return;
+    if (this.newForm && this.repoPickerTarget) this.newForm = setRepoValue(this.newForm, this.repoPickerTarget, cwd);
+    this.mode = this.newForm ? "new" : "normal";
+    this.repoPicker = undefined;
+    this.repoPickerTarget = undefined;
   }
 
   private submitForkDialog() {
@@ -861,9 +915,11 @@ function isPrintable(data: string): boolean {
 function newFormFooter(state: NewFormState): string {
   const focus = state.fields[state.focus];
   const repoHasSuggestions = state.focus.startsWith("repo:") && (focus.suggestions?.length ?? 0) > 1;
+  const repoCanChoose = state.focus.startsWith("repo:") && (focus.suggestions?.length ?? 0) > 0;
   const removableRepo = state.focus.startsWith("repo:") && state.focus !== "repo:0";
   const parts = ["tab/↓ next", "shift-tab/↑ prev", "←→ edit", "alt-a add repo"];
   if (removableRepo) parts.push("alt-x remove extra");
+  if (repoCanChoose) parts.push("ctrl-o choose");
   if (repoHasSuggestions) parts.push("ctrl-n/p cycle");
   parts.push("enter create", "esc cancel");
   return parts.join(" · ");

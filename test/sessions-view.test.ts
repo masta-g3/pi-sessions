@@ -406,6 +406,82 @@ test("new form ctrl-n cycles cwd suggestions on extra repo fields", () => {
   assert.deepEqual(created, { cwd: "/tmp/api", group: "api", title: "api", additionalCwds: ["/tmp/web"] });
 });
 
+test("new form repo picker selects primary cwd and updates group and title", () => {
+  let created: { cwd: string; group: string; title: string } | undefined;
+  const view = new SessionsView(new SessionsController(), () => {}, {
+    createSession: (input) => { created = input; },
+    newFormContext: () => ({ cwd: "/tmp/api", knownCwds: ["/tmp/api", "/tmp/web-client"] }),
+  });
+  view.handleInput("n");
+  view.handleInput("\u000f");
+  assert.match(view.render(120).join("\n"), /Recent repos/);
+  for (const char of "client") view.handleInput(char);
+  view.handleInput("\r");
+  assert.match(view.render(120).join("\n"), /\/tmp\/web-client/);
+  assert.match(view.render(120).join("\n"), /web-client/);
+  view.handleInput("\r");
+
+  assert.deepEqual(created, { cwd: "/tmp/web-client", group: "web-client", title: "web-client" });
+});
+
+test("new form repo picker selects extra repo without changing group", () => {
+  let created: { cwd: string; group: string; title: string; additionalCwds?: string[] } | undefined;
+  const view = new SessionsView(new SessionsController(), () => {}, {
+    createSession: (input) => { created = input; },
+    newFormContext: () => ({ cwd: "/tmp/api", knownCwds: ["/tmp/api", "/tmp/web"] }),
+  });
+  view.handleInput("n");
+  view.handleInput("\u001ba");
+  view.handleInput("\u000f");
+  for (const char of "web") view.handleInput(char);
+  view.handleInput("\r");
+  view.handleInput("\r");
+
+  assert.deepEqual(created, { cwd: "/tmp/api", group: "api", title: "api", additionalCwds: ["/tmp/web"] });
+});
+
+test("new form repo picker escape preserves form state", () => {
+  let created: { cwd: string; group: string; title: string } | undefined;
+  const view = new SessionsView(new SessionsController(), () => {}, {
+    createSession: (input) => { created = input; },
+    newFormContext: () => ({ cwd: "/tmp/api", knownCwds: ["/tmp/api", "/tmp/web"] }),
+  });
+  view.handleInput("n");
+  view.handleInput("\u000f");
+  for (const char of "web") view.handleInput(char);
+  view.handleInput("\u001b");
+  assert.match(view.render(120).join("\n"), /New session/);
+  view.handleInput("\r");
+
+  assert.deepEqual(created, { cwd: "/tmp/api", group: "api", title: "api" });
+});
+
+test("new form repo picker enter with no match stays open", () => {
+  const view = new SessionsView(new SessionsController(), () => {}, {
+    newFormContext: () => ({ cwd: "/tmp/api", knownCwds: ["/tmp/api", "/tmp/web"] }),
+  });
+  view.handleInput("n");
+  view.handleInput("\u000f");
+  for (const char of "zzz") view.handleInput(char);
+  view.handleInput("\r");
+
+  const rendered = view.render(120).join("\n");
+  assert.match(rendered, /Recent repos/);
+  assert.match(rendered, /No repos match/);
+});
+
+test("new form ctrl-o outside repo fields is a no-op", () => {
+  const view = new SessionsView(new SessionsController(), () => {}, {
+    newFormContext: () => ({ cwd: "/tmp/api", knownCwds: ["/tmp/api", "/tmp/web"] }),
+  });
+  view.handleInput("n");
+  view.handleInput("\t");
+  view.handleInput("\u000f");
+
+  assert.match(view.render(120).join("\n"), /New session/);
+  assert.doesNotMatch(view.render(120).join("\n"), /Recent repos/);
+});
+
 test("new form printable a and x edit text instead of adding or removing repos", () => {
   let created: { cwd: string; group: string; title: string; additionalCwds?: string[] } | undefined;
   const view = new SessionsView(new SessionsController(), () => {}, {

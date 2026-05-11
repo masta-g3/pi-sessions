@@ -133,6 +133,10 @@ export function cycleCwdSuggestion(state: NewFormState, delta: number): NewFormS
   }, state.focus, nextValue);
 }
 
+export function setRepoValue(state: NewFormState, key: RepoFieldKey, cwd: string): NewFormState {
+  return applyEdit(state, key, cwd);
+}
+
 export interface ValidationResult {
   ok: boolean;
   state: NewFormState;

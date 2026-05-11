@@ -9,19 +9,28 @@ import { loadProjectSkillsState, setProjectSkills } from "../skills/attach.js";
 import { listSkillPool } from "../skills/catalog.js";
 import { loadMcpCatalog, loadProjectMcpState, setProjectMcpServers } from "../mcp/config.js";
 import { projectStateCwd } from "../core/multi-repo.js";
+import { loadRepoHistory, mergeRepoCwds, rankedRepoCwds } from "../core/repo-history.js";
 import { configureDashboardStatusBar, configureManagedSessionStatusBar, restoreSwitchReturnBinding, switchClientWithReturn } from "../core/tmux.js";
 import { DASHBOARD_SESSION, dashboardEnv } from "./dashboard.js";
 import { deleteManagedSession } from "./delete-session.js";
 import { addManagedSession, forkManagedSession, restartManagedSession, syncManagedSessionStatusBars } from "./session-commands.js";
 import type { ManagedSession } from "../core/types.js";
 
-export function buildNewFormContext(input: { cwd: string; sessions: ManagedSession[]; selected?: ManagedSession }): NewFormContext {
-  const knownCwds = Array.from(new Set(input.sessions.flatMap((session) => [session.cwd, ...(session.additionalCwds ?? [])]))).sort();
+export function buildNewFormContext(input: { cwd: string; sessions: ManagedSession[]; selected?: ManagedSession; historyCwds?: string[] }): NewFormContext {
+  const selectedExtraCwds = input.selected?.additionalCwds ?? [];
+  const registryCwds = input.sessions.flatMap((session) => [session.cwd, ...(session.additionalCwds ?? [])]);
+  const knownCwds = mergeRepoCwds(
+    input.selected ? [input.selected.cwd] : [],
+    [input.cwd],
+    selectedExtraCwds,
+    registryCwds,
+    input.historyCwds ?? [],
+  );
   return {
     cwd: input.selected?.cwd ?? input.cwd,
     group: input.selected?.group,
     knownCwds,
-    ...(input.selected?.additionalCwds?.length ? { additionalCwds: input.selected.additionalCwds } : {}),
+    ...(selectedExtraCwds.length ? { additionalCwds: selectedExtraCwds } : {}),
   };
 }
 
@@ -76,6 +85,7 @@ export async function runTui(): Promise<void> {
   const controller = new SessionsController();
   const skillPool = await listSkillPool();
   const mcpCatalog = await loadMcpCatalog();
+  let historyCwds = rankedRepoCwds((await loadRepoHistory()).repos);
   let stopLoop: RefreshLoopHandle | undefined;
   let stopThemeLoop: (() => void) | undefined;
   let stopped = false;
@@ -127,7 +137,10 @@ export async function runTui(): Promise<void> {
       });
     },
     createSession(input) {
-      return mutateRegistry(async () => { await addManagedSession(input); });
+      return mutateRegistry(async () => {
+        const created = await addManagedSession(input);
+        historyCwds = mergeRepoCwds([created.cwd, ...(created.additionalCwds ?? [])], historyCwds);
+      });
     },
     forkSession(sourceSessionId, input) {
       return mutateRegistry(async () => { await forkManagedSession(sourceSessionId, input); });
@@ -152,6 +165,7 @@ export async function runTui(): Promise<void> {
         cwd: process.cwd(),
         sessions: controller.snapshot().registry.sessions,
         selected: controller.selected(),
+        historyCwds,
       });
     },
     async skills() {
