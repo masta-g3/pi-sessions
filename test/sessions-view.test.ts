@@ -188,6 +188,52 @@ test("enter on waiting session marks read before switching inside tmux", async (
   }
 });
 
+test("external rename action selects the target session and opens rename dialog", () => {
+  const controller = new SessionsController({ version: 1, sessions: [session("api", "api"), session("docs", "docs")] });
+  const view = new SessionsView(controller, () => {});
+
+  controller.move(1);
+
+  assert.equal(view.openRenameForTmuxSession("pi-sessions-api"), true);
+  const rendered = stripAnsi(view.render(100).join("\n"));
+
+  assert.equal(controller.selected()?.id, "api");
+  assert.match(rendered, /Rename session/);
+  assert.match(rendered, /api/);
+});
+
+test("external rename action switches back to the session after rename", async () => {
+  const oldTmux = process.env.TMUX;
+  process.env.TMUX = "/tmp/tmux";
+  try {
+    let resolveRename: (() => void) | undefined;
+    const events: string[] = [];
+    const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
+    const view = new SessionsView(controller, () => {}, {
+      renameSession: (id, title) => new Promise<void>((resolve) => {
+        events.push(`rename:${id}:${title}`);
+        resolveRename = resolve;
+      }),
+      switchInsideTmux: (tmuxSession) => { events.push(`switch:${tmuxSession}`); },
+    });
+
+    assert.equal(view.openRenameForTmuxSession("pi-sessions-api"), true);
+    view.handleInput(" ");
+    view.handleInput("v");
+    view.handleInput("2");
+    view.handleInput("\r");
+
+    assert.deepEqual(events, ["rename:api:api v2"]);
+    resolveRename?.();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(events, ["rename:api:api v2", "switch:pi-sessions-api"]);
+  } finally {
+    if (oldTmux === undefined) delete process.env.TMUX;
+    else process.env.TMUX = oldTmux;
+  }
+});
+
 test("inside tmux switch action errors show in footer", async () => {
   const oldTmux = process.env.TMUX;
   process.env.TMUX = "/tmp/tmux";

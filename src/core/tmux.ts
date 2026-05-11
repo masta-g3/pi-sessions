@@ -72,7 +72,7 @@ export async function configureManagedSessionStatusBar(options: {
   theme?: ChromeThemeTokens;
 }, exec: TmuxExec = realTmuxExec): Promise<void> {
   const chrome = tmuxChromeFromTheme(options.theme);
-  const statusRight = `#[fg=${chrome.hintColor}]ctrl+q return#[default] │ 📁 ${tmuxFormatText(options.title)} | ${tmuxFormatText(projectDisplayName(options.cwd))} `;
+  const statusRight = `#[fg=${chrome.hintColor}]ctrl+q return · alt+r rename#[default] │ 📁 ${tmuxFormatText(options.title)} | ${tmuxFormatText(projectDisplayName(options.cwd))} `;
   await exec.exec("tmux", [
     "set-option", "-t", options.name, "status", "on",
     ";", "set-option", "-t", options.name, "status-style", chrome.statusStyle,
@@ -112,6 +112,8 @@ export interface SwitchClientOptions {
   returnKey?: string;
   managedPrefix?: string;
   stateDir?: string;
+  renameKey?: string;
+  actionPath?: string;
   returnSession?: {
     name: string;
     cwd: string;
@@ -120,12 +122,18 @@ export interface SwitchClientOptions {
   };
 }
 
+interface SavedKeyBinding {
+  key: string;
+  restorePath: string;
+}
+
 interface ActiveReturnBinding {
   ownerPid: number;
   controlSession: string;
   targetSession: string;
   returnKey: string;
   restorePath: string;
+  keyBindings?: SavedKeyBinding[];
 }
 
 export type SwitchReturnBindingStatus =
@@ -155,6 +163,7 @@ export async function switchClientWithReturn(
   const stateDir = options.stateDir ?? join(sessionsStateDir(), "return-key");
   const activePath = join(stateDir, "active.json");
   const restorePath = join(stateDir, "previous.tmux");
+  const actionPath = options.actionPath ?? join(stateDir, "dashboard-action.json");
 
   await mkdir(stateDir, { recursive: true });
   await restoreSwitchReturnBinding({ stateDir, refuseLiveForeignOwner: true }, exec);
@@ -163,6 +172,13 @@ export async function switchClientWithReturn(
   const controlClient = await currentTmuxClient(exec);
   const previousBinding = await currentKeyBinding(returnKey, exec);
   await writeFile(restorePath, previousBinding, "utf8");
+  const keyBindings: SavedKeyBinding[] = [{ key: returnKey, restorePath }];
+  if (options.renameKey) {
+    const renameRestorePath = join(stateDir, "rename.previous.tmux");
+    const previousRenameBinding = await currentKeyBinding(options.renameKey, exec);
+    await writeFile(renameRestorePath, previousRenameBinding, "utf8");
+    keyBindings.push({ key: options.renameKey, restorePath: renameRestorePath });
+  }
 
   const active: ActiveReturnBinding = {
     ownerPid: process.pid,
@@ -170,18 +186,31 @@ export async function switchClientWithReturn(
     targetSession: options.targetSession,
     returnKey,
     restorePath,
+    keyBindings,
   };
   await writeFile(activePath, `${JSON.stringify(active, null, 2)}\n`, "utf8");
 
   try {
     await exec.exec("tmux", ["bind-key", "-n", returnKey, "run-shell", returnBindingScript({
       controlSession,
-      restorePath,
       activePath,
       managedPrefix,
-      returnKey,
+      keyBindings,
       returnSession: options.returnSession,
     })]);
+    if (options.renameKey) {
+      await exec.exec("tmux", ["bind-key", "-n", options.renameKey, "run-shell", returnBindingScript({
+        controlSession,
+        activePath,
+        managedPrefix,
+        keyBindings,
+        returnSession: options.returnSession,
+        action: {
+          path: actionPath,
+          json: JSON.stringify({ action: "rename", tmuxSession: options.targetSession }),
+        },
+      })]);
+    }
     await exec.exec("tmux", ["switch-client", "-c", controlClient, "-t", options.targetSession]);
   } catch (error) {
     try {
@@ -234,43 +263,57 @@ export async function restoreSwitchReturnBinding(
     throw new Error(`tmux return binding is already active for pid ${active.ownerPid}`);
   }
 
-  await exec.exec("tmux", ["unbind-key", "-T", "root", active.returnKey]);
-  let previous = "";
-  try {
-    previous = await readFile(active.restorePath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  const keyBindings = active.keyBindings ?? [{ key: active.returnKey, restorePath: active.restorePath }];
+  for (const binding of keyBindings) {
+    try {
+      await exec.exec("tmux", ["unbind-key", "-T", "root", binding.key]);
+    } catch (error) {
+      if (!errorMessage(error).includes("unknown key")) throw error;
+    }
   }
-  if (previous.trim()) await exec.exec("tmux", ["source-file", active.restorePath]);
+  for (const binding of keyBindings) {
+    let previous = "";
+    try {
+      previous = await readFile(binding.restorePath, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    if (previous.trim()) await exec.exec("tmux", ["source-file", binding.restorePath]);
+    await rm(binding.restorePath, { force: true });
+  }
   await rm(activePath, { force: true });
-  await rm(active.restorePath, { force: true });
 }
 
 function returnBindingScript(input: {
   controlSession: string;
-  restorePath: string;
   activePath: string;
   managedPrefix: string;
-  returnKey: string;
+  keyBindings: SavedKeyBinding[];
   returnSession?: {
     name: string;
     cwd: string;
     command: string;
     env?: Record<string, string>;
   };
+  action?: {
+    path: string;
+    json: string;
+  };
 }): string {
   const prefixPattern = shellCasePrefix(input.managedPrefix);
+  const restorePaths = input.keyBindings.map((binding) => binding.restorePath);
   const restore = [
-    `tmux unbind-key -T root ${shellQuote(input.returnKey)} 2>/dev/null || true`,
-    `test -s ${shellQuote(input.restorePath)} && tmux source-file ${shellQuote(input.restorePath)}`,
-    `rm -f ${shellQuote(input.restorePath)} ${shellQuote(input.activePath)}`,
+    ...input.keyBindings.map((binding) => `tmux unbind-key -T root ${shellQuote(binding.key)} 2>/dev/null || true`),
+    ...restorePaths.map((path) => `test -s ${shellQuote(path)} && tmux source-file ${shellQuote(path)}`),
+    `rm -f ${[...restorePaths, input.activePath].map(shellQuote).join(" ")}`,
   ].join("; ");
+  const action = input.action ? `printf %s ${shellQuote(input.action.json)} > ${shellQuote(input.action.path)}; ` : "";
   const returnCommand = input.returnSession ? commandWithEnv(input.returnSession.command, input.returnSession.env) : "";
   const ensureReturnSession = input.returnSession?.name === input.controlSession
     ? `tmux has-session -t ${shellQuote(input.controlSession)} 2>/dev/null || tmux new-session -d -s ${shellQuote(input.controlSession)} -c ${shellQuote(input.returnSession.cwd)} ${shellQuote(returnCommand)} 2>/dev/null || true; `
     : "";
   return `S=$(tmux display-message -p '#{session_name}'); case "$S" in ${prefixPattern}*) `
-    + `${ensureReturnSession}if tmux switch-client -t ${shellQuote(input.controlSession)} 2>/dev/null; then ${restore}; fi;; esac`;
+    + `${ensureReturnSession}if tmux switch-client -t ${shellQuote(input.controlSession)} 2>/dev/null; then ${action}${restore}; fi;; esac`;
 }
 
 function commandWithEnv(command: string, env: Record<string, string> | undefined): string {

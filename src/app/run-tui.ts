@@ -12,6 +12,7 @@ import { projectStateCwd } from "../core/multi-repo.js";
 import { loadRepoHistory, mergeRepoCwds, rankedRepoCwds } from "../core/repo-history.js";
 import { configureDashboardStatusBar, configureManagedSessionStatusBar, restoreSwitchReturnBinding, switchClientWithReturn } from "../core/tmux.js";
 import { DASHBOARD_SESSION, dashboardEnv } from "./dashboard.js";
+import { consumeDashboardAction } from "./dashboard-action.js";
 import { deleteManagedSession } from "./delete-session.js";
 import { addManagedSession, forkManagedSession, restartManagedSession, syncManagedSessionStatusBars } from "./session-commands.js";
 import type { ManagedSession } from "../core/types.js";
@@ -88,10 +89,12 @@ export async function runTui(): Promise<void> {
   let historyCwds = rankedRepoCwds((await loadRepoHistory()).repos);
   let stopLoop: RefreshLoopHandle | undefined;
   let stopThemeLoop: (() => void) | undefined;
+  let stopActionLoop: (() => void) | undefined;
   let stopped = false;
   const stop = () => {
     stopped = true;
     stopThemeLoop?.();
+    stopActionLoop?.();
     void stopLoop?.stop();
     void restoreSwitchReturnBinding({ onlyOwnerPid: process.pid }).catch(() => {});
     tui.stop();
@@ -124,6 +127,7 @@ export async function runTui(): Promise<void> {
       if (session) await configureManagedSessionStatusBar({ name: session.tmuxSession, title: session.title, cwd: session.cwd, theme: await loadSessionsTheme({ cwd: session.cwd }) });
       return switchClientWithReturn({
         targetSession: tmuxSession,
+        renameKey: "M-r",
         returnSession: { name: DASHBOARD_SESSION, cwd, command: "pi-sessions tui", env: dashboardEnv() },
       });
     },
@@ -206,10 +210,32 @@ export async function runTui(): Promise<void> {
       tui.requestRender();
     },
   });
+  stopActionLoop = startDashboardActionLoop(async () => {
+    const action = await consumeDashboardAction();
+    if (!action) return;
+    await controller.refresh();
+    if (action.action === "rename") view.openRenameForTmuxSession(action.tmuxSession);
+    tui.requestRender();
+  });
   tui.addChild(view);
   tui.setFocus(view);
   tui.start();
   stopLoop = startRefreshLoop(controller, tui);
+}
+
+function startDashboardActionLoop(processAction: () => Promise<void>, intervalMs = 250): () => void {
+  let inFlight: Promise<void> | undefined;
+  let stopped = false;
+  const run = () => {
+    if (stopped || inFlight) return;
+    inFlight = processAction().catch(() => {}).finally(() => { inFlight = undefined; });
+  };
+  const timer = setInterval(run, intervalMs);
+  run();
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
 }
 
 function selectedProjectCwd(selected: ManagedSession | undefined, fallback: string): string {

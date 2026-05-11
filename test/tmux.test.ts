@@ -32,7 +32,7 @@ test("configureManagedSessionStatusBar sets a Pi-native right footer", async () 
   assert.deepEqual(exec.calls.map((call) => call.args), [[
     "set-option", "-t", "pi-sessions-api", "status", "on",
     ";", "set-option", "-t", "pi-sessions-api", "status-style", "bg=#1a1b26,fg=#a9b1d6",
-    ";", "set-option", "-t", "pi-sessions-api", "status-right", "#[fg=#565f89]ctrl+q return#[default] │ 📁 package | example-service ",
+    ";", "set-option", "-t", "pi-sessions-api", "status-right", "#[fg=#565f89]ctrl+q return · alt+r rename#[default] │ 📁 package | example-service ",
     ";", "set-option", "-t", "pi-sessions-api", "status-right-length", "100",
     ";", "set-option", "-t", "pi-sessions-api", "status-left", "",
     ";", "set-option", "-t", "pi-sessions-api", "status-left-length", "120",
@@ -55,7 +55,7 @@ test("configureManagedSessionStatusBar applies theme-derived chrome", async () =
 
   const args = exec.calls[0]?.args.join("\n") ?? "";
   assert.match(args, /status-style\nbg=colour240,fg=#010203/);
-  assert.match(args, /#\[fg=#445566\]ctrl\+q return#\[default\]/);
+  assert.match(args, /#\[fg=#445566\]ctrl\+q return · alt\+r rename#\[default\]/);
   assert.match(args, /window-status-style\nfg=#010203,bg=colour240/);
 });
 
@@ -136,6 +136,32 @@ test("switchClientWithReturn installs return binding then switches client", asyn
   assert.match(script, /active\.json/);
   assert.match(script, /source-file/);
   assert.match(script, /unbind-key/);
+});
+
+test("switchClientWithReturn installs rename action binding when requested", async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const exec = fakeTmux((call) => {
+    const subcommand = call.args[0];
+    if (subcommand === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
+    if (subcommand === "display-message" && call.args[2] === "#{client_name}") return { stdout: "/dev/ttys011\n", stderr: "" };
+    if (subcommand === "list-keys") return { stdout: "", stderr: "" };
+    return { stdout: "", stderr: "" };
+  });
+
+  await switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir, renameKey: "M-r" }, exec);
+
+  const bindCalls = exec.calls.filter((call) => call.args[0] === "bind-key");
+  assert.deepEqual(bindCalls.map((call) => call.args.slice(0, 4)), [
+    ["bind-key", "-n", "C-q", "run-shell"],
+    ["bind-key", "-n", "M-r", "run-shell"],
+  ]);
+  const renameScript = bindCalls.find((call) => call.args[2] === "M-r")?.args[4] ?? "";
+  assert.match(renameScript, /\"action\":\"rename\"/);
+  assert.match(renameScript, /\"tmuxSession\":\"pi-sessions-target\"/);
+  assert.match(renameScript, /dashboard-action\.json/);
+  assert.match(renameScript, /tmux switch-client -t 'control'/);
+  assert.match(renameScript, /unbind-key -T root 'C-q'/);
+  assert.match(renameScript, /unbind-key -T root 'M-r'/);
 });
 
 test("switchClientWithReturn can self-heal a missing return session before cleanup", async () => {

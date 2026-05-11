@@ -138,6 +138,12 @@ export class SessionsController {
     if (wasSelected) this.preview = "";
   }
 
+  selectSession(id: string): boolean {
+    if (!visibleSessions(this.registry.sessions, this.filter).some((session) => session.id === id)) return false;
+    this.selectedId = id;
+    return true;
+  }
+
   selected(): ManagedSession | undefined {
     if (!this.selectedId) return undefined;
     return visibleSessions(this.registry.sessions, this.filter).find((session) => session.id === this.selectedId);

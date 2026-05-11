@@ -92,6 +92,7 @@ export class SessionsView implements Component {
   private pendingRestart: { sessionId: string; expiresAt: number } | undefined;
   private deleteTargetId: string | undefined;
   private renameGroupFrom: string | undefined;
+  private returnAfterRenameTmuxSession: string | undefined;
   private busy = false;
   private deleting = false;
 
@@ -233,6 +234,18 @@ export class SessionsView implements Component {
 
   invalidate(): void {}
 
+  openRenameForTmuxSession(tmuxSession: string): boolean {
+    const target = this.controller.snapshot().registry.sessions.find((session) => session.tmuxSession === tmuxSession);
+    if (!target) {
+      this.message = `session not found: ${tmuxSession}`;
+      return false;
+    }
+    this.controller.setFilter(undefined);
+    if (!this.controller.selectSession(target.id)) return false;
+    this.startRenameSessionDialog(tmuxSession);
+    return this.mode === "rename";
+  }
+
   private startFilter() {
     if (this.controller.snapshot().registry.sessions.length === 0) return;
     this.clearPendingRestart();
@@ -281,7 +294,7 @@ export class SessionsView implements Component {
     this.message = undefined;
   }
 
-  private startRenameSessionDialog() {
+  private startRenameSessionDialog(returnAfterRenameTmuxSession?: string) {
     const selected = this.controller.selected();
     if (!selected) return;
     if (selected.kind === "subagent") {
@@ -289,6 +302,7 @@ export class SessionsView implements Component {
       return;
     }
     this.clearPendingRestart();
+    this.returnAfterRenameTmuxSession = returnAfterRenameTmuxSession;
     this.mode = "rename";
     this.renameSessionForm = createForm<"title">([
       { key: "title", label: "title", value: selected.title, hint: "session display title" },
@@ -534,6 +548,7 @@ export class SessionsView implements Component {
       this.mode = "normal";
       setState(undefined);
       this.renameGroupFrom = undefined;
+      this.returnAfterRenameTmuxSession = undefined;
       this.message = undefined;
       return;
     }
@@ -678,7 +693,13 @@ export class SessionsView implements Component {
     this.renameSessionForm = result.state;
     if (!result.ok) return;
     const title = result.state.fields.title.value;
-    this.runAction(() => this.actions.renameSession ? this.actions.renameSession(selected.id, title) : this.controller.renameSession(selected.id, title), "renaming session...");
+    const returnTmuxSession = this.returnAfterRenameTmuxSession;
+    this.returnAfterRenameTmuxSession = undefined;
+    this.runAction(
+      () => this.actions.renameSession ? this.actions.renameSession(selected.id, title) : this.controller.renameSession(selected.id, title),
+      "renaming session...",
+      () => { if (returnTmuxSession) this.attachSession(selected); },
+    );
     this.mode = "normal";
     this.renameSessionForm = undefined;
   }
@@ -700,14 +721,18 @@ export class SessionsView implements Component {
     this.renameGroupForm = undefined;
   }
 
-  private runAction(action: () => unknown, pendingMessage: string): void {
+  private runAction(action: () => unknown, pendingMessage: string, onSuccess?: () => void): void {
     try {
       const result = action();
-      if (!isPromise(result)) return;
+      if (!isPromise(result)) {
+        onSuccess?.();
+        return;
+      }
       this.busy = true;
       this.message = pendingMessage;
       void result.then(() => {
         this.busy = false;
+        onSuccess?.();
         if (this.message === pendingMessage) this.message = undefined;
       }).catch((error: unknown) => {
         this.busy = false;
