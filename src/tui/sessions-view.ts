@@ -1,6 +1,7 @@
 import { Key, matchesKey, type Component } from "@mariozechner/pi-tui";
 import { attachPlan, restartConfirmMessage } from "../app/actions.js";
 import type { SessionsController } from "../app/controller.js";
+import type { ManagedSession } from "../core/types.js";
 import { buildRenderModel } from "./render-model.js";
 import { renderSessions, renderDialog, renderForm } from "./layout.js";
 import { stripAnsi, styleToken, type SessionsTheme } from "./theme.js";
@@ -341,6 +342,30 @@ export class SessionsView implements Component {
       else this.message = "session stopped; press R twice to restart";
       return;
     }
+    if (selected.status === "waiting") {
+      try {
+        const result = this.actions.acknowledge ? this.actions.acknowledge() : this.controller.acknowledgeSelected();
+        if (isPromise(result)) {
+          this.busy = true;
+          this.message = "marking read...";
+          void result.then(() => {
+            this.busy = false;
+            this.attachSession(selected);
+          }).catch((error: unknown) => {
+            this.busy = false;
+            this.message = errorMessage(error);
+          });
+          return;
+        }
+      } catch (error) {
+        this.message = errorMessage(error);
+        return;
+      }
+    }
+    this.attachSession(selected);
+  }
+
+  private attachSession(selected: ManagedSession) {
     const plan = attachPlan(selected);
     if (plan.type === "inside-tmux") {
       const switchInsideTmux = this.actions.switchInsideTmux;

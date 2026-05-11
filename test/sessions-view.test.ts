@@ -159,6 +159,35 @@ test("enter inside tmux switches client and keeps command visible without touchi
   }
 });
 
+test("enter on waiting session marks read before switching inside tmux", async () => {
+  const oldTmux = process.env.TMUX;
+  process.env.TMUX = "/tmp/tmux";
+  try {
+    let resolveAcknowledge: (() => void) | undefined;
+    const events: string[] = [];
+    const waiting = { ...session("api", "api"), status: "waiting" as const };
+    const controller = new SessionsController({ version: 1, sessions: [waiting] });
+    const view = new SessionsView(controller, () => {}, {
+      acknowledge: () => new Promise<void>((resolve) => {
+        events.push("acknowledge");
+        resolveAcknowledge = resolve;
+      }),
+      switchInsideTmux: (tmuxSession) => { events.push(`switch:${tmuxSession}`); },
+    });
+
+    view.handleInput("\r");
+
+    assert.deepEqual(events, ["acknowledge"]);
+    resolveAcknowledge?.();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(events, ["acknowledge", "switch:pi-sessions-api"]);
+  } finally {
+    if (oldTmux === undefined) delete process.env.TMUX;
+    else process.env.TMUX = oldTmux;
+  }
+});
+
 test("inside tmux switch action errors show in footer", async () => {
   const oldTmux = process.env.TMUX;
   process.env.TMUX = "/tmp/tmux";
