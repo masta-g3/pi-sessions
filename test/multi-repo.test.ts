@@ -22,7 +22,7 @@ function session(root: string, overrides: Partial<ManagedSession> = {}): Managed
     title: "api",
     cwd: join(root, "api"),
     group: "default",
-    tmuxSession: "pi-sessions-session",
+    tmuxSession: "pi-agent-hub-session",
     status: "starting",
     createdAt: 1,
     updatedAt: 1,
@@ -56,7 +56,7 @@ test("effective cwd separates runtime workspace from primary project state", () 
 });
 
 test("ensureMultiRepoWorkspace creates repo symlinks and primary .pi link", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-multi-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-multi-"));
   const state = join(root, "state");
   const api = join(root, "api");
   const web = join(root, "web");
@@ -66,7 +66,7 @@ test("ensureMultiRepoWorkspace creates repo symlinks and primary .pi link", asyn
   await mkdir(duplicateName, { recursive: true });
   const original = session(root, { additionalCwds: [web, duplicateName] });
 
-  const ensured = await ensureMultiRepoWorkspace(original, { PI_SESSIONS_DIR: state });
+  const ensured = await ensureMultiRepoWorkspace(original, { PI_AGENT_HUB_DIR: state });
 
   assert.equal(ensured.workspaceCwd, join(state, "workspaces", original.id));
   assert.equal(effectiveSessionCwd(ensured), ensured.workspaceCwd);
@@ -79,16 +79,16 @@ test("ensureMultiRepoWorkspace creates repo symlinks and primary .pi link", asyn
   assert.equal(resolve(await readlink(join(ensured.workspaceCwd!, ".pi"))), join(api, ".pi"));
 
   await writeFile(join(ensured.workspaceCwd!, "stale"), "remove me", "utf8");
-  await ensureMultiRepoWorkspace(ensured, { PI_SESSIONS_DIR: state });
+  await ensureMultiRepoWorkspace(ensured, { PI_AGENT_HUB_DIR: state });
   await assert.rejects(lstat(join(ensured.workspaceCwd!, "stale")), /ENOENT/);
 });
 
 test("ensureMultiRepoWorkspace dedupes canonical paths and degrades duplicate-only extras to single repo", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-multi-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-multi-"));
   const state = join(root, "state");
   const api = join(root, "api");
   await mkdir(api, { recursive: true });
-  const ensured = await ensureMultiRepoWorkspace(session(root, { additionalCwds: [api] }), { PI_SESSIONS_DIR: state });
+  const ensured = await ensureMultiRepoWorkspace(session(root, { additionalCwds: [api] }), { PI_AGENT_HUB_DIR: state });
 
   assert.equal(ensured.additionalCwds, undefined);
   assert.equal(ensured.workspaceCwd, undefined);
@@ -97,39 +97,39 @@ test("ensureMultiRepoWorkspace dedupes canonical paths and degrades duplicate-on
 });
 
 test("ensureMultiRepoWorkspace fails missing or non-directory paths", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-multi-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-multi-"));
   const state = join(root, "state");
   const api = join(root, "api");
   await mkdir(api, { recursive: true });
 
   await assert.rejects(
-    () => ensureMultiRepoWorkspace(session(root, { additionalCwds: [join(root, "missing")] }), { PI_SESSIONS_DIR: state }),
+    () => ensureMultiRepoWorkspace(session(root, { additionalCwds: [join(root, "missing")] }), { PI_AGENT_HUB_DIR: state }),
     /Project path does not exist/,
   );
 
   const file = join(root, "file.txt");
   await writeFile(file, "not a dir", "utf8");
   await assert.rejects(
-    () => ensureMultiRepoWorkspace(session(root, { additionalCwds: [file] }), { PI_SESSIONS_DIR: state }),
+    () => ensureMultiRepoWorkspace(session(root, { additionalCwds: [file] }), { PI_AGENT_HUB_DIR: state }),
     /Project path is not a directory/,
   );
 });
 
 test("removeMultiRepoWorkspace removes only the owned workspace", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-multi-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-multi-"));
   const state = join(root, "state");
   const api = join(root, "api");
   const web = join(root, "web");
   await mkdir(api, { recursive: true });
   await mkdir(web, { recursive: true });
-  const ensured = await ensureMultiRepoWorkspace(session(root, { additionalCwds: [web] }), { PI_SESSIONS_DIR: state });
+  const ensured = await ensureMultiRepoWorkspace(session(root, { additionalCwds: [web] }), { PI_AGENT_HUB_DIR: state });
 
-  await removeMultiRepoWorkspace({ ...ensured, workspaceCwd: undefined }, { PI_SESSIONS_DIR: state });
+  await removeMultiRepoWorkspace({ ...ensured, workspaceCwd: undefined }, { PI_AGENT_HUB_DIR: state });
 
   await assert.rejects(lstat(ensured.workspaceCwd!), /ENOENT/);
   assert.equal((await lstat(api)).isDirectory(), true);
   await assert.rejects(
-    () => removeMultiRepoWorkspace({ ...ensured, workspaceCwd: api }, { PI_SESSIONS_DIR: state }),
+    () => removeMultiRepoWorkspace({ ...ensured, workspaceCwd: api }, { PI_AGENT_HUB_DIR: state }),
     /Refusing to remove non-owned workspace/,
   );
 });

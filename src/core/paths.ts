@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { STATE_DIR_BASENAME, STATE_ENV } from "./names.js";
 
 export function agentDir(env: NodeJS.ProcessEnv = process.env): string {
   return resolve(env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
@@ -10,7 +11,7 @@ export function sessionDir(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export function sessionsStateDir(env: NodeJS.ProcessEnv = process.env): string {
-  return resolve(env.PI_SESSIONS_DIR ?? join(agentDir(env), "pi-sessions"));
+  return resolve(env[STATE_ENV] ?? join(agentDir(env), STATE_DIR_BASENAME));
 }
 
 export function registryPath(env: NodeJS.ProcessEnv = process.env): string {

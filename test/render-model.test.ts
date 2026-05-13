@@ -10,7 +10,7 @@ function session(id: string, group: string, status: SessionStatus, title = id): 
     title,
     cwd: `/tmp/${title}`,
     group,
-    tmuxSession: `pi-sessions-${id}`,
+    tmuxSession: `pi-agent-hub-${id}`,
     status,
     createdAt: 1,
     updatedAt: 1,

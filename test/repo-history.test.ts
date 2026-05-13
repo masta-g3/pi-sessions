@@ -7,7 +7,7 @@ import { loadRepoHistory, mergeRepoCwds, rankedRepoCwds, recordRepoUsage, type R
 import { writeJsonAtomic } from "../src/core/atomic-json.js";
 
 async function tempPath(name: string) {
-  const dir = await mkdtemp(join(tmpdir(), "pi-sessions-repos-"));
+  const dir = await mkdtemp(join(tmpdir(), "pi-agent-hub-repos-"));
   return join(dir, name);
 }
 

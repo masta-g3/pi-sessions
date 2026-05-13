@@ -4,6 +4,11 @@ import { access, readFile, stat } from "node:fs/promises";
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 const failures = [];
 
+if (pkg.name !== "pi-agent-hub") failures.push(`package name must be pi-agent-hub, got ${pkg.name}`);
+if (JSON.stringify(pkg.bin ?? {}) !== JSON.stringify({ "pi-agent-hub": "dist/cli.js" })) {
+  failures.push("package bin must expose only pi-agent-hub -> dist/cli.js");
+}
+
 await requireFile("dist/cli.js");
 await requireExecutable("dist/cli.js");
 

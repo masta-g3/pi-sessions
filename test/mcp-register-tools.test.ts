@@ -20,7 +20,7 @@ function fakeClient(): DirectMcpClient {
 }
 
 test("registerMcpTools registers enabled project tools and cleanup closes clients", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-mcp-register-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-mcp-register-"));
   const project = join(root, "project");
   const catalogPath = join(root, "mcp.json");
   await writeFile(catalogPath, JSON.stringify({ version: 1, servers: { fake: { type: "stdio", command: "fake" } } }), "utf8");
@@ -44,7 +44,7 @@ test("registerMcpTools registers enabled project tools and cleanup closes client
 });
 
 test("registerMcpTools resolves project MCP state through workspace .pi symlink", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-mcp-register-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-mcp-register-"));
   const primary = join(root, "api");
   const workspace = join(root, "workspace");
   const catalogPath = join(root, "mcp.json");
@@ -64,7 +64,7 @@ test("registerMcpTools resolves project MCP state through workspace .pi symlink"
 });
 
 test("registerMcpTools errors clearly when enabled server is missing", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-mcp-register-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-mcp-register-"));
   const project = join(root, "project");
   const catalogPath = join(root, "mcp.json");
   await writeFile(catalogPath, JSON.stringify({ version: 1, servers: {} }), "utf8");
@@ -78,7 +78,7 @@ test("registerMcpTools errors clearly when enabled server is missing", async () 
 });
 
 test("registerMcpTools registers pooled tools through pool client", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-mcp-register-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-mcp-register-"));
   const project = join(root, "project");
   const catalogPath = join(root, "mcp.json");
   await writeFile(catalogPath, JSON.stringify({ version: 1, servers: { fake: { type: "stdio", command: "fake", pool: true } } }), "utf8");

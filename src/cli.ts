@@ -3,6 +3,8 @@ import { constants } from "node:fs";
 import { access, mkdir } from "node:fs/promises";
 import { configPath, effectiveMcpCatalogPath, effectiveSkillPoolDirs } from "./core/config.js";
 import { extensionPath } from "./core/extension-path.js";
+import { LEGACY_STATE_ENV, STATE_ENV, CLI_COMMAND } from "./core/names.js";
+import { migrateLegacyRuntime, type MigrationSummary } from "./core/migration.js";
 import { registryPath, sessionsStateDir } from "./core/paths.js";
 import { loadRegistry } from "./core/registry.js";
 import { hasTmux, inspectSwitchReturnBinding } from "./core/tmux.js";
@@ -21,6 +23,7 @@ async function main() {
       await dashboard();
       return;
     case "tui":
+      await prepareRuntime();
       await runTui();
       return;
     case "help":
@@ -61,34 +64,36 @@ async function main() {
 }
 
 function printHelp() {
-  console.log(`pi-sessions
+  console.log(`${CLI_COMMAND}
 
 Usage:
-  pi-sessions              open dashboard tmux session
-  pi-sessions tui          run TUI directly
-  pi-sessions list
-  pi-sessions add <cwd> [-t title] [-g group] [--add-cwd path ...]
-  pi-sessions start <session-id>
-  pi-sessions stop <session-id>
-  pi-sessions restart <session-id>
-  pi-sessions delete <session-id>
-  pi-sessions fork <session-id> [-t title] [-g group]
-  pi-sessions mcp-pool
-  pi-sessions doctor
+  ${CLI_COMMAND}              open dashboard tmux session
+  ${CLI_COMMAND} tui          run TUI directly
+  ${CLI_COMMAND} list
+  ${CLI_COMMAND} add <cwd> [-t title] [-g group] [--add-cwd path ...]
+  ${CLI_COMMAND} start <session-id>
+  ${CLI_COMMAND} stop <session-id>
+  ${CLI_COMMAND} restart <session-id>
+  ${CLI_COMMAND} delete <session-id>
+  ${CLI_COMMAND} fork <session-id> [-t title] [-g group]
+  ${CLI_COMMAND} mcp-pool
+  ${CLI_COMMAND} doctor
 `);
 }
 
 async function dashboard() {
-  if (!(await hasTmux())) throw new Error("tmux is required for the dashboard session; use `pi-sessions tui` to run directly");
+  if (!(await hasTmux())) throw new Error(`tmux is required for the dashboard session; use \`${CLI_COMMAND} tui\` to run directly`);
+  await prepareRuntime();
   await openDashboard({
     cwd: process.cwd(),
-    command: "pi-sessions tui",
+    command: `${CLI_COMMAND} tui`,
     insideTmux: Boolean(process.env.TMUX),
     env: dashboardEnv(),
   });
 }
 
 async function list() {
+  await prepareRuntime();
   const registry = await loadRegistry();
   if (!registry.sessions.length) {
     console.log("No managed Pi sessions.");
@@ -100,8 +105,9 @@ async function list() {
 }
 
 async function add(argv: string[]) {
+  await prepareRuntime();
   const cwdArg = argv[0];
-  if (!cwdArg) throw new Error("Usage: pi-sessions add <cwd> [-t title] [-g group] [--add-cwd path ...]");
+  if (!cwdArg) throw new Error(`Usage: ${CLI_COMMAND} add <cwd> [-t title] [-g group] [--add-cwd path ...]`);
   const title = flag(argv, "-t") ?? flag(argv, "--title");
   const group = flag(argv, "-g") ?? flag(argv, "--group");
   const additionalCwds = flags(argv, "--add-cwd");
@@ -110,29 +116,34 @@ async function add(argv: string[]) {
 }
 
 async function start(id: string | undefined) {
-  if (!id) throw new Error("Usage: pi-sessions start <session-id>");
+  await prepareRuntime();
+  if (!id) throw new Error(`Usage: ${CLI_COMMAND} start <session-id>`);
   await startManagedSession(id);
 }
 
 async function stop(id: string | undefined) {
-  if (!id) throw new Error("Usage: pi-sessions stop <session-id>");
+  await prepareRuntime();
+  if (!id) throw new Error(`Usage: ${CLI_COMMAND} stop <session-id>`);
   await stopManagedSession(id);
 }
 
 async function restart(id: string | undefined) {
-  if (!id) throw new Error("Usage: pi-sessions restart <session-id>");
+  await prepareRuntime();
+  if (!id) throw new Error(`Usage: ${CLI_COMMAND} restart <session-id>`);
   await restartManagedSession(id);
 }
 
 async function deleteCommand(id: string | undefined) {
-  if (!id) throw new Error("Usage: pi-sessions delete <session-id>");
+  await prepareRuntime();
+  if (!id) throw new Error(`Usage: ${CLI_COMMAND} delete <session-id>`);
   const deleted = await deleteManagedSession(id);
   console.log(`deleted ${deleted.id}\t${deleted.title}`);
 }
 
 async function fork(argv: string[]) {
+  await prepareRuntime();
   const sourceId = argv[0];
-  if (!sourceId) throw new Error("Usage: pi-sessions fork <session-id> [-t title] [-g group]");
+  if (!sourceId) throw new Error(`Usage: ${CLI_COMMAND} fork <session-id> [-t title] [-g group]`);
   const title = flag(argv, "-t") ?? flag(argv, "--title");
   const group = flag(argv, "-g") ?? flag(argv, "--group");
   const record = await forkManagedSession(sourceId, { title, group });
@@ -140,6 +151,7 @@ async function fork(argv: string[]) {
 }
 
 async function mcpPool() {
+  await prepareRuntime();
   const pool = await startMcpPool({ socketPath: `${sessionsStateDir()}/pool/pool.sock` });
   console.log(`MCP pool listening at ${pool.socketPath}`);
   await new Promise<void>((resolve) => {
@@ -150,6 +162,7 @@ async function mcpPool() {
 }
 
 async function doctor() {
+  const migration = await prepareRuntime();
   const dir = sessionsStateDir();
   await mkdir(dir, { recursive: true });
   await access(dir, constants.W_OK);
@@ -167,6 +180,12 @@ async function doctor() {
     console.log(`return key: ${state} ${returnKey.returnKey} ${returnKey.targetSession} -> ${returnKey.controlSession}`);
   }
   console.log(`extension:  ${ext}`);
+  if (process.env[LEGACY_STATE_ENV]) console.log(`warning:   ${LEGACY_STATE_ENV} is legacy; use ${STATE_ENV}`);
+  for (const warning of migration.warnings) console.log(`warning:   ${warning}`);
+}
+
+async function prepareRuntime(): Promise<MigrationSummary> {
+  return migrateLegacyRuntime();
 }
 
 function flag(argv: string[], name: string): string | undefined {

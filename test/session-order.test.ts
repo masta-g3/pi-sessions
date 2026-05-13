@@ -9,7 +9,7 @@ function session(id: string, group = "default", order?: number): ManagedSession 
     title: id,
     cwd: `/tmp/${id}`,
     group,
-    tmuxSession: `pi-sessions-${id}`,
+    tmuxSession: `pi-agent-hub-${id}`,
     status: "idle",
     createdAt: 1,
     updatedAt: 1,

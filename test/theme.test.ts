@@ -15,7 +15,7 @@ function session(): ManagedSession {
     title: "api",
     cwd: "/tmp/api",
     group: "default",
-    tmuxSession: "pi-sessions-s1",
+    tmuxSession: "pi-agent-hub-s1",
     status: "waiting",
     createdAt: 1,
     updatedAt: 1,
@@ -40,7 +40,7 @@ test("themeFromPiTheme leaves missing statusLineBg empty so tmux chrome can fall
 });
 
 test("loadSessionsTheme reads project settings before global settings", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-theme-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
   const project = join(root, "project");
   const agent = join(root, "agent");
   await mkdir(join(project, ".pi", "themes"), { recursive: true });
@@ -54,7 +54,7 @@ test("loadSessionsTheme reads project settings before global settings", async ()
 });
 
 test("loadSessionsTheme returns built-in light theme for Pi light", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-theme-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
   const agent = join(root, "agent");
   await mkdir(agent, { recursive: true });
   await writeFile(join(agent, "settings.json"), JSON.stringify({ theme: "light" }), "utf8");

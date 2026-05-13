@@ -37,13 +37,13 @@ test("openDashboard creates and attaches dashboard outside tmux", async () => {
 
   await openDashboard({
     cwd: "/repo",
-    command: "pi-sessions tui",
+    command: "pi-agent-hub tui",
     insideTmux: false,
-    env: { PI_SESSIONS_DIR: "/tmp/sessions" },
+    env: { PI_AGENT_HUB_DIR: "/tmp/sessions" },
   }, tmux, runner);
 
   assert.deepEqual(tmux.calls.map((call) => call.args[0]), ["has-session", "new-session", "set-option"]);
-  assert.deepEqual(tmux.calls[1]?.args, ["new-session", "-d", "-s", DASHBOARD_SESSION, "-c", "/repo", "PI_SESSIONS_DIR='/tmp/sessions' pi-sessions tui"]);
+  assert.deepEqual(tmux.calls[1]?.args, ["new-session", "-d", "-s", DASHBOARD_SESSION, "-c", "/repo", "PI_AGENT_HUB_DIR='/tmp/sessions' pi-agent-hub tui"]);
   assert.deepEqual(runner.calls, [{ command: "tmux", args: ["attach-session", "-t", DASHBOARD_SESSION] }]);
   assert.ok(tmux.calls[2]?.args.includes("status-style"));
   assert.ok(tmux.calls[2]?.args.includes("status-left"));
@@ -53,7 +53,7 @@ test("openDashboard attaches existing dashboard outside tmux", async () => {
   const tmux = fakeTmux(true);
   const runner = fakeRunner();
 
-  await openDashboard({ cwd: "/repo", command: "pi-sessions tui", insideTmux: false }, tmux, runner);
+  await openDashboard({ cwd: "/repo", command: "pi-agent-hub tui", insideTmux: false }, tmux, runner);
 
   assert.deepEqual(tmux.calls.map((call) => call.args[0]), ["has-session", "set-option"]);
   assert.deepEqual(runner.calls, [{ command: "tmux", args: ["attach-session", "-t", DASHBOARD_SESSION] }]);
@@ -65,13 +65,13 @@ test("openDashboard creates detached dashboard then switches inside tmux", async
 
   await openDashboard({
     cwd: "/repo",
-    command: "pi-sessions tui",
+    command: "pi-agent-hub tui",
     insideTmux: true,
     env: { PI_CODING_AGENT_DIR: "/tmp/agent" },
   }, tmux, runner);
 
   assert.deepEqual(tmux.calls.map((call) => call.args[0]), ["has-session", "new-session", "set-option", "switch-client"]);
-  assert.deepEqual(tmux.calls[1]?.args, ["new-session", "-d", "-s", DASHBOARD_SESSION, "-c", "/repo", "PI_CODING_AGENT_DIR='/tmp/agent' pi-sessions tui"]);
+  assert.deepEqual(tmux.calls[1]?.args, ["new-session", "-d", "-s", DASHBOARD_SESSION, "-c", "/repo", "PI_CODING_AGENT_DIR='/tmp/agent' pi-agent-hub tui"]);
   assert.deepEqual(runner.calls, []);
 });
 
@@ -79,7 +79,7 @@ test("openDashboard switches to existing dashboard inside tmux", async () => {
   const tmux = fakeTmux(true);
   const runner = fakeRunner();
 
-  await openDashboard({ cwd: "/repo", command: "pi-sessions tui", insideTmux: true }, tmux, runner);
+  await openDashboard({ cwd: "/repo", command: "pi-agent-hub tui", insideTmux: true }, tmux, runner);
 
   assert.deepEqual(tmux.calls.map((call) => call.args[0]), ["has-session", "set-option", "switch-client"]);
   assert.deepEqual(runner.calls, []);

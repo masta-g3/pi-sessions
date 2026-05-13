@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
+import { DASHBOARD_SESSION_NAME, STATE_ENV } from "../core/names.js";
 import { configureDashboardStatusBar, newSession, sessionExists, type TmuxExec, realTmuxExec } from "../core/tmux.js";
 
-export const DASHBOARD_SESSION = "pi-sessions-dashboard";
+export const DASHBOARD_SESSION = DASHBOARD_SESSION_NAME;
 
 export interface DashboardRunner {
   run(command: string, args: string[]): Promise<void>;
@@ -53,7 +54,7 @@ export async function openDashboard(
 export function dashboardEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   return compactEnv({
     PI_CODING_AGENT_DIR: env.PI_CODING_AGENT_DIR,
-    PI_SESSIONS_DIR: env.PI_SESSIONS_DIR,
+    [STATE_ENV]: env[STATE_ENV],
   });
 }
 

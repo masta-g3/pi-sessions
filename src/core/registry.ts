@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { mkdir, rm } from "node:fs/promises";
 import { readJsonOr, writeJsonAtomic } from "./atomic-json.js";
 import { multiRepoWorkspaceDir, normalizeAdditionalCwds } from "./multi-repo.js";
+import { MANAGED_SESSION_PREFIX } from "./names.js";
 import { registryPath } from "./paths.js";
 import type { SessionsRegistry, ManagedSession } from "./types.js";
 
@@ -87,7 +88,7 @@ export function normalizeGroup(group: string | undefined): string {
 }
 
 export function tmuxSessionName(id: string): string {
-  return `pi-sessions-${id.slice(0, 12)}`;
+  return `${MANAGED_SESSION_PREFIX}${id.slice(0, 12)}`;
 }
 
 export function renameGroup(registry: SessionsRegistry, from: string, to: string): SessionsRegistry {

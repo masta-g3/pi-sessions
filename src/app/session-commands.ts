@@ -1,5 +1,6 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
+import { SESSION_ID_ENV, STATE_ENV } from "../core/names.js";
 import { resolve } from "node:path";
 import { buildPiArgs } from "../core/pi-process.js";
 import { extensionPath } from "../core/extension-path.js";
@@ -57,7 +58,7 @@ export async function startManagedSession(id: string): Promise<void> {
     name: session.tmuxSession,
     cwd: effectiveSessionCwd(session),
     command: `pi ${piArgs.map(shellQuote).join(" ")}`,
-    env: { PI_SESSIONS_SESSION_ID: session.id, PI_SESSIONS_DIR: sessionsStateDir() },
+    env: { [SESSION_ID_ENV]: session.id, [STATE_ENV]: sessionsStateDir() },
   });
   await configureManagedSessionStatusBar({ name: session.tmuxSession, title: session.title, cwd: session.cwd, theme: await sessionTheme(session) });
 }
@@ -115,7 +116,7 @@ export async function forkManagedSession(sourceId: string, input: ForkInput = {}
     name: record.tmuxSession,
     cwd: effectiveSessionCwd(record),
     command: `pi ${piArgs.map(shellQuote).join(" ")}`,
-    env: { PI_SESSIONS_SESSION_ID: record.id, PI_SESSIONS_DIR: sessionsStateDir() },
+    env: { [SESSION_ID_ENV]: record.id, [STATE_ENV]: sessionsStateDir() },
   });
   await configureManagedSessionStatusBar({ name: record.tmuxSession, title: record.title, cwd: record.cwd, theme: await sessionTheme(record) });
   return record;

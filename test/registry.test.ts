@@ -7,7 +7,7 @@ import { writeJsonAtomic } from "../src/core/atomic-json.js";
 import { createSessionRecord, loadRegistry, normalizeGroup, removeSession, renameGroup, saveRegistry } from "../src/core/registry.js";
 
 async function tempPath(name: string) {
-  const dir = await mkdtemp(join(tmpdir(), "pi-sessions-"));
+  const dir = await mkdtemp(join(tmpdir(), "pi-agent-hub-"));
   return join(dir, name);
 }
 

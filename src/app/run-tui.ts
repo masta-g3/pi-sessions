@@ -128,7 +128,7 @@ export async function runTui(): Promise<void> {
       return switchClientWithReturn({
         targetSession: tmuxSession,
         renameKey: "M-r",
-        returnSession: { name: DASHBOARD_SESSION, cwd, command: "pi-sessions tui", env: dashboardEnv() },
+        returnSession: { name: DASHBOARD_SESSION, cwd, command: "pi-agent-hub tui", env: dashboardEnv() },
       });
     },
     restart(sessionId) {

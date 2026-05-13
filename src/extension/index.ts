@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { KIND_ENV, LEGACY_KIND_ENV, LEGACY_PARENT_ID_ENV, LEGACY_SESSION_ID_ENV, LEGACY_STATE_ENV, PARENT_ID_ENV, SESSION_ID_ENV, STATE_ENV } from "../core/names.js";
 import { sessionsStateDir } from "../core/paths.js";
 import { HEARTBEAT_INTERVAL_MS } from "../core/status.js";
 import { registerMcpTools } from "../mcp/register-tools.js";
@@ -14,11 +15,11 @@ type PiContext = {
   };
 };
 
-const EXTENSION_KEY = Symbol.for("pi-sessions.extension.loaded");
-type PiSessionsGlobal = typeof globalThis & { [EXTENSION_KEY]?: true };
+const EXTENSION_KEY = Symbol.for("pi-agent-hub.extension.loaded");
+type PiAgentHubGlobal = typeof globalThis & { [EXTENSION_KEY]?: true };
 
-export default function piSessionsExtension(pi: ExtensionAPI) {
-  const globalState = globalThis as PiSessionsGlobal;
+export default function piAgentHubExtension(pi: ExtensionAPI) {
+  const globalState = globalThis as PiAgentHubGlobal;
   if (globalState[EXTENSION_KEY]) return;
   globalState[EXTENSION_KEY] = true;
 
@@ -28,13 +29,13 @@ export default function piSessionsExtension(pi: ExtensionAPI) {
   let mcpCleanup: (() => Promise<void>) | undefined;
 
   async function heartbeat(state: Heartbeat["state"], ctx: PiContext, message?: string) {
-    const id = process.env.PI_SESSIONS_SESSION_ID;
+    const id = process.env[SESSION_ID_ENV] ?? process.env[LEGACY_SESSION_ID_ENV];
     if (!id) return;
     if (state !== currentState) {
       currentState = state;
       stateSince = Date.now();
     }
-    const file = join(process.env.PI_SESSIONS_DIR ?? sessionsStateDir(), "heartbeats", `${id}.json`);
+    const file = join(process.env[STATE_ENV] ?? process.env[LEGACY_STATE_ENV] ?? sessionsStateDir(), "heartbeats", `${id}.json`);
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, `${JSON.stringify({
       managedSessionId: id,
@@ -45,8 +46,8 @@ export default function piSessionsExtension(pi: ExtensionAPI) {
       stateSince,
       message,
       updatedAt: Date.now(),
-      kind: process.env.PI_SESSIONS_KIND as "subagent" | undefined,
-      parentId: process.env.PI_SESSIONS_PARENT_ID,
+      kind: (process.env[KIND_ENV] ?? process.env[LEGACY_KIND_ENV]) as "subagent" | undefined,
+      parentId: process.env[PARENT_ID_ENV] ?? process.env[LEGACY_PARENT_ID_ENV],
       agentName: process.env.PI_SUBAGENT_AGENT,
       taskPreview: process.env.PI_SUBAGENT_TASK_PREVIEW,
       resultPath: process.env.PI_SUBAGENT_RESULT_PATH,

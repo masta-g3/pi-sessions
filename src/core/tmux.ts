@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { tmuxChromeFromTheme, type ChromeThemeTokens } from "./chrome.js";
+import { MANAGED_SESSION_PREFIX } from "./names.js";
 import { sessionsStateDir } from "./paths.js";
 import type { CommandResult } from "./types.js";
 
@@ -159,7 +160,7 @@ export async function switchClientWithReturn(
   exec: TmuxExec = realTmuxExec,
 ): Promise<void> {
   const returnKey = options.returnKey ?? "C-q";
-  const managedPrefix = options.managedPrefix ?? "pi-sessions-";
+  const managedPrefix = options.managedPrefix ?? MANAGED_SESSION_PREFIX;
   const stateDir = options.stateDir ?? join(sessionsStateDir(), "return-key");
   const activePath = join(stateDir, "active.json");
   const restorePath = join(stateDir, "previous.tmux");

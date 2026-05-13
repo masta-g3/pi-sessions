@@ -1,4 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { MANAGED_SESSION_PREFIX } from "../core/names.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -12,7 +13,7 @@ export interface DirectMcpClient {
 
 export async function createDirectMcpClient(serverId: string, config: McpServerConfig): Promise<DirectMcpClient> {
   const transport = createTransport(config);
-  const client = new Client({ name: `pi-sessions-${serverId}`, version: "0.1.0" });
+  const client = new Client({ name: `${MANAGED_SESSION_PREFIX}${serverId}`, version: "0.1.0" });
   await client.connect(transport);
   return {
     async listTools() {

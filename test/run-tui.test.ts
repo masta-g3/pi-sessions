@@ -10,7 +10,7 @@ function session(id: string, cwd: string, group: string, additionalCwds?: string
     cwd,
     group,
     ...(additionalCwds?.length ? { additionalCwds } : {}),
-    tmuxSession: `pi-sessions-${id}`,
+    tmuxSession: `pi-agent-hub-${id}`,
     status: "idle",
     createdAt: 1,
     updatedAt: 1,

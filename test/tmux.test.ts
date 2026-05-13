@@ -27,19 +27,19 @@ function fakeTmux(handler: (call: Call) => CommandResult | Promise<CommandResult
 test("configureManagedSessionStatusBar sets a Pi-native right footer", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureManagedSessionStatusBar({ name: "pi-sessions-api", title: "package", cwd: "/repo/example-service" }, exec);
+  await configureManagedSessionStatusBar({ name: "pi-agent-hub-api", title: "package", cwd: "/repo/example-service" }, exec);
 
   assert.deepEqual(exec.calls.map((call) => call.args), [[
-    "set-option", "-t", "pi-sessions-api", "status", "on",
-    ";", "set-option", "-t", "pi-sessions-api", "status-style", "bg=#1a1b26,fg=#a9b1d6",
-    ";", "set-option", "-t", "pi-sessions-api", "status-right", "#[fg=#565f89]ctrl+q return · alt+r rename#[default] │ 📁 package | example-service ",
-    ";", "set-option", "-t", "pi-sessions-api", "status-right-length", "100",
-    ";", "set-option", "-t", "pi-sessions-api", "status-left", "",
-    ";", "set-option", "-t", "pi-sessions-api", "status-left-length", "120",
-    ";", "set-option", "-t", "pi-sessions-api", "window-status-style", "fg=#a9b1d6,bg=#1a1b26",
-    ";", "set-option", "-t", "pi-sessions-api", "window-status-current-style", "fg=#a9b1d6,bg=#1a1b26",
-    ";", "set-option", "-t", "pi-sessions-api", "window-status-format", " #I:#W#F ",
-    ";", "set-option", "-t", "pi-sessions-api", "window-status-current-format", " #I:#W#F ",
+    "set-option", "-t", "pi-agent-hub-api", "status", "on",
+    ";", "set-option", "-t", "pi-agent-hub-api", "status-style", "bg=#1a1b26,fg=#a9b1d6",
+    ";", "set-option", "-t", "pi-agent-hub-api", "status-right", "#[fg=#565f89]ctrl+q return · alt+r rename#[default] │ 📁 package | example-service ",
+    ";", "set-option", "-t", "pi-agent-hub-api", "status-right-length", "100",
+    ";", "set-option", "-t", "pi-agent-hub-api", "status-left", "",
+    ";", "set-option", "-t", "pi-agent-hub-api", "status-left-length", "120",
+    ";", "set-option", "-t", "pi-agent-hub-api", "window-status-style", "fg=#a9b1d6,bg=#1a1b26",
+    ";", "set-option", "-t", "pi-agent-hub-api", "window-status-current-style", "fg=#a9b1d6,bg=#1a1b26",
+    ";", "set-option", "-t", "pi-agent-hub-api", "window-status-format", " #I:#W#F ",
+    ";", "set-option", "-t", "pi-agent-hub-api", "window-status-current-format", " #I:#W#F ",
   ]]);
 });
 
@@ -47,7 +47,7 @@ test("configureManagedSessionStatusBar applies theme-derived chrome", async () =
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
   await configureManagedSessionStatusBar({
-    name: "pi-sessions-api",
+    name: "pi-agent-hub-api",
     title: "package",
     cwd: "/repo/example-service",
     theme: { accent: "#010203", border: 240, dim: "445566" },
@@ -62,7 +62,7 @@ test("configureManagedSessionStatusBar applies theme-derived chrome", async () =
 test("configureManagedSessionStatusBar escapes tmux format markers in labels", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureManagedSessionStatusBar({ name: "pi-sessions-api", title: "api #1", cwd: "/repo/proj#ect" }, exec);
+  await configureManagedSessionStatusBar({ name: "pi-agent-hub-api", title: "api #1", cwd: "/repo/proj#ect" }, exec);
 
   assert.match(exec.calls[0]?.args.join("\n"), /api ##1 \| proj##ect/);
 });
@@ -70,25 +70,25 @@ test("configureManagedSessionStatusBar escapes tmux format markers in labels", a
 test("configureDashboardStatusBar overrides inherited colored window formats", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureDashboardStatusBar({ name: "pi-sessions-dashboard", cwd: "/repo/example-service" }, exec);
+  await configureDashboardStatusBar({ name: "pi-agent-hub-dashboard", cwd: "/repo/example-service" }, exec);
 
   assert.deepEqual(exec.calls.map((call) => call.args), [[
-    "set-option", "-t", "pi-sessions-dashboard", "status", "on",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "status-style", "bg=#1a1b26,fg=#a9b1d6",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "status-left", "",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "status-right", "#[fg=#565f89]dashboard#[default] │ 📁 example-service ",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "status-right-length", "100",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-style", "fg=#a9b1d6,bg=#1a1b26",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-current-style", "fg=#a9b1d6,bg=#1a1b26",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-format", " #I:#W#F ",
-    ";", "set-option", "-t", "pi-sessions-dashboard", "window-status-current-format", " #I:#W#F ",
+    "set-option", "-t", "pi-agent-hub-dashboard", "status", "on",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "status-style", "bg=#1a1b26,fg=#a9b1d6",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "status-left", "",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "status-right", "#[fg=#565f89]dashboard#[default] │ 📁 example-service ",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "status-right-length", "100",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "window-status-style", "fg=#a9b1d6,bg=#1a1b26",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "window-status-current-style", "fg=#a9b1d6,bg=#1a1b26",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "window-status-format", " #I:#W#F ",
+    ";", "set-option", "-t", "pi-agent-hub-dashboard", "window-status-current-format", " #I:#W#F ",
   ]]);
 });
 
 test("configureDashboardStatusBar applies theme-derived chrome", async () => {
   const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-  await configureDashboardStatusBar({ name: "pi-sessions-dashboard", cwd: "/repo/example-service", theme: { text: "#111111", accent: "#222222", border: "#333333", dim: 244 } }, exec);
+  await configureDashboardStatusBar({ name: "pi-agent-hub-dashboard", cwd: "/repo/example-service", theme: { text: "#111111", accent: "#222222", border: "#333333", dim: 244 } }, exec);
 
   assert.match(exec.calls[0]?.args.join("\n"), /status-style\nbg=#333333,fg=#111111/);
   assert.match(exec.calls[0]?.args.join("\n"), /#\[fg=colour244\]dashboard#\[default\]/);
@@ -110,7 +110,7 @@ test("currentTmuxClient reads and trims the current tmux client", async () => {
 });
 
 test("switchClientWithReturn installs return binding then switches client", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
     const subcommand = call.args[0];
     if (subcommand === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
@@ -119,17 +119,17 @@ test("switchClientWithReturn installs return binding then switches client", asyn
     return { stdout: "", stderr: "" };
   });
 
-  await switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec);
+  await switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec);
 
   assert.deepEqual(exec.calls.map((call) => call.args[0] === "bind-key" ? call.args.slice(0, 4) : call.args), [
     ["display-message", "-p", "#{session_name}"],
     ["display-message", "-p", "#{client_name}"],
     ["list-keys", "-T", "root", "C-q"],
     ["bind-key", "-n", "C-q", "run-shell"],
-    ["switch-client", "-c", "/dev/ttys011", "-t", "pi-sessions-target"],
+    ["switch-client", "-c", "/dev/ttys011", "-t", "pi-agent-hub-target"],
   ]);
   const script = exec.calls.find((call) => call.args[0] === "bind-key")?.args[4] ?? "";
-  assert.match(script, /pi-sessions-\*/);
+  assert.match(script, /pi-agent-hub-\*/);
   assert.doesNotMatch(script, /\*\);/);
   assert.match(script, /control/);
   assert.match(script, /previous\.tmux/);
@@ -139,7 +139,7 @@ test("switchClientWithReturn installs return binding then switches client", asyn
 });
 
 test("switchClientWithReturn installs rename action binding when requested", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
     const subcommand = call.args[0];
     if (subcommand === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
@@ -148,7 +148,7 @@ test("switchClientWithReturn installs rename action binding when requested", asy
     return { stdout: "", stderr: "" };
   });
 
-  await switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir, renameKey: "M-r" }, exec);
+  await switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir, renameKey: "M-r" }, exec);
 
   const bindCalls = exec.calls.filter((call) => call.args[0] === "bind-key");
   assert.deepEqual(bindCalls.map((call) => call.args.slice(0, 4)), [
@@ -157,7 +157,7 @@ test("switchClientWithReturn installs rename action binding when requested", asy
   ]);
   const renameScript = bindCalls.find((call) => call.args[2] === "M-r")?.args[4] ?? "";
   assert.match(renameScript, /\"action\":\"rename\"/);
-  assert.match(renameScript, /\"tmuxSession\":\"pi-sessions-target\"/);
+  assert.match(renameScript, /\"tmuxSession\":\"pi-agent-hub-target\"/);
   assert.match(renameScript, /dashboard-action\.json/);
   assert.match(renameScript, /tmux switch-client -t 'control'/);
   assert.match(renameScript, /unbind-key -T root 'C-q'/);
@@ -165,37 +165,37 @@ test("switchClientWithReturn installs rename action binding when requested", asy
 });
 
 test("switchClientWithReturn can self-heal a missing return session before cleanup", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
-    if (call.args[0] === "display-message" && call.args[2] === "#{session_name}") return { stdout: "pi-sessions-dashboard\n", stderr: "" };
+    if (call.args[0] === "display-message" && call.args[2] === "#{session_name}") return { stdout: "pi-agent-hub-dashboard\n", stderr: "" };
     if (call.args[0] === "display-message" && call.args[2] === "#{client_name}") return { stdout: "/dev/ttys011\n", stderr: "" };
     if (call.args[0] === "list-keys") return { stdout: "", stderr: "" };
     return { stdout: "", stderr: "" };
   });
 
   await switchClientWithReturn({
-    targetSession: "pi-sessions-target",
+    targetSession: "pi-agent-hub-target",
     stateDir,
     returnSession: {
-      name: "pi-sessions-dashboard",
+      name: "pi-agent-hub-dashboard",
       cwd: "/repo/example-service",
-      command: "pi-sessions tui",
-      env: { PI_CODING_AGENT_DIR: "/tmp/pi agent", PI_SESSIONS_DIR: "/tmp/pi-sessions" },
+      command: "pi-agent-hub tui",
+      env: { PI_CODING_AGENT_DIR: "/tmp/pi agent", PI_AGENT_HUB_DIR: "/tmp/pi-agent-hub" },
     },
   }, exec);
 
   const script = exec.calls.find((call) => call.args[0] === "bind-key")?.args[4] ?? "";
-  assert.match(script, /tmux has-session -t 'pi-sessions-dashboard'/);
-  assert.match(script, /tmux new-session -d -s 'pi-sessions-dashboard' -c '\/repo\/example-service'/);
+  assert.match(script, /tmux has-session -t 'pi-agent-hub-dashboard'/);
+  assert.match(script, /tmux new-session -d -s 'pi-agent-hub-dashboard' -c '\/repo\/example-service'/);
   assert.match(script, /PI_CODING_AGENT_DIR=.*\/tmp\/pi agent/);
-  assert.match(script, /PI_SESSIONS_DIR=.*\/tmp\/pi-sessions/);
-  assert.match(script, /if tmux switch-client -t 'pi-sessions-dashboard'/);
+  assert.match(script, /PI_AGENT_HUB_DIR=.*\/tmp\/pi-agent-hub/);
+  assert.match(script, /if tmux switch-client -t 'pi-agent-hub-dashboard'/);
   assert.match(script, /then tmux unbind-key/);
   assert.match(script, /then .*rm -f .*previous\.tmux.*active\.json.*; fi/);
 });
 
 test("switchClientWithReturn handles absent previous binding", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
     if (call.args[0] === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
     if (call.args[0] === "display-message" && call.args[2] === "#{client_name}") return { stdout: "/dev/ttys011\n", stderr: "" };
@@ -203,14 +203,14 @@ test("switchClientWithReturn handles absent previous binding", async () => {
     return { stdout: "", stderr: "" };
   });
 
-  await switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec);
+  await switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec);
 
   assert.equal(exec.calls.some((call) => call.args[0] === "bind-key"), true);
   assert.equal(exec.calls.some((call) => call.args[0] === "switch-client"), true);
 });
 
 test("switchClientWithReturn rethrows unexpected list-keys failures", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
     if (call.args[0] === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
     if (call.args[0] === "display-message" && call.args[2] === "#{client_name}") return { stdout: "/dev/ttys011\n", stderr: "" };
@@ -218,13 +218,13 @@ test("switchClientWithReturn rethrows unexpected list-keys failures", async () =
     return { stdout: "", stderr: "" };
   });
 
-  await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec), /tmux server unavailable/);
+  await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec), /tmux server unavailable/);
   assert.equal(exec.calls.some((call) => call.args[0] === "bind-key"), false);
   assert.equal(exec.calls.some((call) => call.args[0] === "switch-client"), false);
 });
 
 test("switchClientWithReturn restores binding when switch fails after bind", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const exec = fakeTmux((call) => {
     if (call.args[0] === "display-message" && call.args[2] === "#{session_name}") return { stdout: "control\n", stderr: "" };
     if (call.args[0] === "display-message" && call.args[2] === "#{client_name}") return { stdout: "/dev/ttys011\n", stderr: "" };
@@ -233,7 +233,7 @@ test("switchClientWithReturn restores binding when switch fails after bind", asy
     return { stdout: "", stderr: "" };
   });
 
-  await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec), /switch failed/);
+  await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec), /switch failed/);
 
   const switchIndex = exec.calls.findIndex((call) => call.args[0] === "switch-client");
   const unbindIndex = exec.calls.findIndex((call, index) => index > switchIndex && call.args[0] === "unbind-key");
@@ -243,15 +243,15 @@ test("switchClientWithReturn restores binding when switch fails after bind", asy
 });
 
 test("inspectSwitchReturnBinding reports missing and stale return state", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
 
   assert.deepEqual(await inspectSwitchReturnBinding({ stateDir }), { active: false });
 
   const previousPath = join(stateDir, "previous.tmux");
   await writeFile(join(stateDir, "active.json"), JSON.stringify({
     ownerPid: 999999999,
-    controlSession: "pi-sessions-dashboard",
-    targetSession: "pi-sessions-target",
+    controlSession: "pi-agent-hub-dashboard",
+    targetSession: "pi-agent-hub-target",
     returnKey: "C-q",
     restorePath: previousPath,
   }));
@@ -260,18 +260,18 @@ test("inspectSwitchReturnBinding reports missing and stale return state", async 
   assert.equal(status.active, true);
   if (status.active) {
     assert.equal(status.stale, true);
-    assert.equal(status.controlSession, "pi-sessions-dashboard");
+    assert.equal(status.controlSession, "pi-agent-hub-dashboard");
   }
 });
 
 test("restoreSwitchReturnBinding restores active binding without rebinding", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const previousPath = join(stateDir, "previous.tmux");
   await writeFile(previousPath, "bind-key -T root C-q send-prefix\n");
   await writeFile(join(stateDir, "active.json"), JSON.stringify({
     ownerPid: process.pid,
     controlSession: "old-control",
-    targetSession: "pi-sessions-old",
+    targetSession: "pi-agent-hub-old",
     returnKey: "C-q",
     restorePath: previousPath,
   }));
@@ -286,7 +286,7 @@ test("restoreSwitchReturnBinding restores active binding without rebinding", asy
 });
 
 test("switchClientWithReturn refuses to replace a live foreign return binding", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const previousPath = join(stateDir, "previous.tmux");
   const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });
   try {
@@ -295,13 +295,13 @@ test("switchClientWithReturn refuses to replace a live foreign return binding", 
     await writeFile(join(stateDir, "active.json"), JSON.stringify({
       ownerPid: child.pid,
       controlSession: "other-control",
-      targetSession: "pi-sessions-other",
+      targetSession: "pi-agent-hub-other",
       returnKey: "C-q",
       restorePath: previousPath,
     }));
     const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
 
-    await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec), /already active/);
+    await assert.rejects(() => switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec), /already active/);
     assert.deepEqual(exec.calls, []);
   } finally {
     child.kill();
@@ -309,13 +309,13 @@ test("switchClientWithReturn refuses to replace a live foreign return binding", 
 });
 
 test("switchClientWithReturn restores stale active binding before rebinding", async () => {
-  const stateDir = await mkdtemp(join(tmpdir(), "pi-sessions-return-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "pi-agent-hub-return-"));
   const previousPath = join(stateDir, "previous.tmux");
   await writeFile(previousPath, "bind-key -T root C-q send-prefix\n");
   await writeFile(join(stateDir, "active.json"), JSON.stringify({
     ownerPid: 999999999,
     controlSession: "old-control",
-    targetSession: "pi-sessions-old",
+    targetSession: "pi-agent-hub-old",
     returnKey: "C-q",
     restorePath: previousPath,
   }));
@@ -326,9 +326,9 @@ test("switchClientWithReturn restores stale active binding before rebinding", as
     return { stdout: "", stderr: "" };
   });
 
-  await switchClientWithReturn({ targetSession: "pi-sessions-target", stateDir }, exec);
+  await switchClientWithReturn({ targetSession: "pi-agent-hub-target", stateDir }, exec);
 
   assert.deepEqual(exec.calls.slice(0, 2).map((call) => call.args[0]), ["unbind-key", "source-file"]);
   const active = JSON.parse(await readFile(join(stateDir, "active.json"), "utf8")) as { targetSession: string };
-  assert.equal(active.targetSession, "pi-sessions-target");
+  assert.equal(active.targetSession, "pi-agent-hub-target");
 });

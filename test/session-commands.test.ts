@@ -13,7 +13,7 @@ function session(overrides: Partial<ManagedSession> = {}): ManagedSession {
     title: "source",
     cwd: "/tmp/project",
     group: "default",
-    tmuxSession: "pi-sessions-source",
+    tmuxSession: "pi-agent-hub-source",
     status: "waiting",
     createdAt: 1,
     updatedAt: 1,
@@ -22,9 +22,9 @@ function session(overrides: Partial<ManagedSession> = {}): ManagedSession {
 }
 
 test("forkManagedSession does not register a fork when source history is not saved", async () => {
-  const oldDir = process.env.PI_SESSIONS_DIR;
-  const dir = await mkdtemp(join(tmpdir(), "pi-sessions-fork-"));
-  process.env.PI_SESSIONS_DIR = dir;
+  const oldDir = process.env.PI_AGENT_HUB_DIR;
+  const dir = await mkdtemp(join(tmpdir(), "pi-agent-hub-fork-"));
+  process.env.PI_AGENT_HUB_DIR = dir;
   try {
     await saveRegistry({ version: 1, sessions: [session({ sessionFile: join(dir, "missing.jsonl") })] });
 
@@ -37,7 +37,7 @@ test("forkManagedSession does not register a fork when source history is not sav
     assert.equal(registry.sessions.length, 1);
     assert.equal(registry.sessions[0].id, "source-session");
   } finally {
-    if (oldDir === undefined) delete process.env.PI_SESSIONS_DIR;
-    else process.env.PI_SESSIONS_DIR = oldDir;
+    if (oldDir === undefined) delete process.env.PI_AGENT_HUB_DIR;
+    else process.env.PI_AGENT_HUB_DIR = oldDir;
   }
 });

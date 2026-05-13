@@ -1,7 +1,7 @@
 {
-  "name": "pi-sessions",
+  "name": "pi-agent-hub",
   "version": "1.0.0",
-  "description": "Minimal Pi-native session manager for tmux-managed Pi sessions",
+  "description": "Tmux session hub for Pi coding agent sessions and subagents",
   "main": "dist/src/index.js",
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json && node scripts/link-cli.mjs",
@@ -13,7 +13,14 @@
   "keywords": [
     "pi-package",
     "pi",
-    "tmux"
+    "pi-coding-agent",
+    "agent",
+    "hub",
+    "sessions",
+    "subagents",
+    "tmux",
+    "session-manager",
+    "coding-agent"
   ],
   "author": "",
   "license": "MIT",
@@ -32,7 +39,7 @@
     "typescript": "^6.0.3"
   },
   "bin": {
-    "pi-sessions": "dist/cli.js"
+    "pi-agent-hub": "dist/cli.js"
   },
   "files": [
     "dist/src",

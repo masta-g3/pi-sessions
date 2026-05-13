@@ -11,7 +11,7 @@ function session(id: string, title: string): ManagedSession {
     title,
     cwd: `/tmp/${title}`,
     group: "default",
-    tmuxSession: `pi-sessions-${id}`,
+    tmuxSession: `pi-agent-hub-${id}`,
     status: "idle",
     createdAt: 1,
     updatedAt: 1,
@@ -77,9 +77,9 @@ test("slash on empty state does not trap q in filter mode", () => {
 test("help overlay opens and closes", () => {
   const view = new SessionsView(new SessionsController(), () => {});
   view.handleInput("?");
-  assert.match(view.render(80).join("\n"), /pi sessions help/);
+  assert.match(view.render(80).join("\n"), /pi agent hub help/);
   view.handleInput("\u001b");
-  assert.doesNotMatch(view.render(80).join("\n"), /pi sessions help/);
+  assert.doesNotMatch(view.render(80).join("\n"), /pi agent hub help/);
 });
 
 test("q quits from help overlay", () => {
@@ -128,7 +128,7 @@ test("enter triggers attach action outside tmux", () => {
     const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
     const view = new SessionsView(controller, () => {}, { attachOutsideTmux: (tmuxSession) => { attached = tmuxSession; } });
     view.handleInput("\r");
-    assert.equal(attached, "pi-sessions-api");
+    assert.equal(attached, "pi-agent-hub-api");
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;
@@ -150,9 +150,9 @@ test("enter inside tmux switches client and keeps command visible without touchi
 
     view.handleInput("\r");
 
-    assert.equal(switched, "pi-sessions-api");
+    assert.equal(switched, "pi-agent-hub-api");
     assert.equal(copied, undefined);
-    assert.match(view.render(100).join("\n"), /tmux switch-client -t pi-sessions-api/);
+    assert.match(view.render(100).join("\n"), /tmux switch-client -t pi-agent-hub-api/);
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;
@@ -181,7 +181,7 @@ test("enter on waiting session marks read before switching inside tmux", async (
     resolveAcknowledge?.();
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.deepEqual(events, ["acknowledge", "switch:pi-sessions-api"]);
+    assert.deepEqual(events, ["acknowledge", "switch:pi-agent-hub-api"]);
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;
@@ -194,7 +194,7 @@ test("external rename action selects the target session and opens rename dialog"
 
   controller.move(1);
 
-  assert.equal(view.openRenameForTmuxSession("pi-sessions-api"), true);
+  assert.equal(view.openRenameForTmuxSession("pi-agent-hub-api"), true);
   const rendered = stripAnsi(view.render(100).join("\n"));
 
   assert.equal(controller.selected()?.id, "api");
@@ -217,7 +217,7 @@ test("external rename action switches back to the session after rename", async (
       switchInsideTmux: (tmuxSession) => { events.push(`switch:${tmuxSession}`); },
     });
 
-    assert.equal(view.openRenameForTmuxSession("pi-sessions-api"), true);
+    assert.equal(view.openRenameForTmuxSession("pi-agent-hub-api"), true);
     view.handleInput(" ");
     view.handleInput("v");
     view.handleInput("2");
@@ -227,7 +227,7 @@ test("external rename action switches back to the session after rename", async (
     resolveRename?.();
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.deepEqual(events, ["rename:api:api v2", "switch:pi-sessions-api"]);
+    assert.deepEqual(events, ["rename:api:api v2", "switch:pi-agent-hub-api"]);
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;

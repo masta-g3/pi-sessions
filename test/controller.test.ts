@@ -14,7 +14,7 @@ function session(status: ManagedSession["status"], overrides: Partial<ManagedSes
     title,
     cwd: `/tmp/${title}`,
     group: overrides.group ?? "default",
-    tmuxSession: `pi-sessions-${id}`,
+    tmuxSession: `pi-agent-hub-${id}`,
     status,
     createdAt: 1,
     updatedAt: 1,
@@ -112,13 +112,13 @@ test("reorderSelected swaps selected session within its group and clamps at bord
 });
 
 async function withTempSessionsDir(fn: () => Promise<void>): Promise<void> {
-  const oldDir = process.env.PI_SESSIONS_DIR;
-  process.env.PI_SESSIONS_DIR = await mkdtemp(join(tmpdir(), "pi-sessions-controller-"));
+  const oldDir = process.env.PI_AGENT_HUB_DIR;
+  process.env.PI_AGENT_HUB_DIR = await mkdtemp(join(tmpdir(), "pi-agent-hub-controller-"));
   try {
     await fn();
   } finally {
-    if (oldDir === undefined) delete process.env.PI_SESSIONS_DIR;
-    else process.env.PI_SESSIONS_DIR = oldDir;
+    if (oldDir === undefined) delete process.env.PI_AGENT_HUB_DIR;
+    else process.env.PI_AGENT_HUB_DIR = oldDir;
   }
 }
 

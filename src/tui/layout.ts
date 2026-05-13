@@ -202,7 +202,8 @@ export function renderDialog(title: string, rows: string[], width: number, theme
 
 function box(width: number, body: string[], styles: LayoutStyles): string[] {
   const inner = width - 2;
-  const top = `${styles.border("┌")} ${styles.accent("pi sessions")} ${styles.border("─".repeat(Math.max(0, inner - 11)))}${styles.border("┐")}`;
+  const title = "pi agent hub";
+  const top = `${styles.border("┌")} ${styles.accent(title)} ${styles.border("─".repeat(Math.max(0, inner - displayWidth(title) - 2)))}${styles.border("┐")}`;
   const bottom = `${styles.border("└")}${styles.border("─".repeat(inner))}${styles.border("┘")}`;
   return [top, ...body.map((line) => `${styles.border("│")}${pad(line, inner)}${styles.border("│")}`), bottom].map((line) => truncate(line, width));
 }

@@ -11,7 +11,7 @@ function session(overrides: Partial<ManagedSession> = {}): ManagedSession {
     title: "api",
     cwd: "/tmp/api",
     group: "default",
-    tmuxSession: "pi-sessions-s1",
+    tmuxSession: "pi-agent-hub-s1",
     status: "running",
     createdAt: 1,
     updatedAt: 1,

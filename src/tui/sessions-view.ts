@@ -773,7 +773,7 @@ export class SessionsView implements Component {
     return renderDialog("Delete session", [
       target ? `target  ${target.title}` : "target  none",
       "",
-      "Removes this session from pi-sessions.",
+      "Removes this session from pi-agent-hub.",
       "Pi conversation files are kept.",
       "",
       ...choices.filter(Boolean),
@@ -984,7 +984,7 @@ function errorMessage(error: unknown): string {
 
 function renderHelp(width: number): string[] {
   const lines = [
-    "pi sessions help",
+    "pi agent hub help",
     "",
     "navigation   ↑↓/j/k move cursor   K/J reorder   / filter",
     "sessions     enter attach   n new   r rename   f fork   g/G group   R restart   d delete   a mark read",

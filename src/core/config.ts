@@ -35,10 +35,10 @@ export async function effectiveMcpCatalogPath(env: NodeJS.ProcessEnv = process.e
 }
 
 function validateConfig(config: SessionsConfig): void {
-  if (config.version !== 1) throw new Error("Invalid pi-sessions config version");
-  if (config.skills?.poolDirs && !Array.isArray(config.skills.poolDirs)) throw new Error("Invalid skills.poolDirs in pi-sessions config");
-  if (config.skills?.poolDirs?.some((dir) => typeof dir !== "string")) throw new Error("Invalid skills.poolDirs in pi-sessions config");
-  if (config.mcp?.catalogPath !== undefined && typeof config.mcp.catalogPath !== "string") throw new Error("Invalid mcp.catalogPath in pi-sessions config");
+  if (config.version !== 1) throw new Error("Invalid pi-agent-hub config version");
+  if (config.skills?.poolDirs && !Array.isArray(config.skills.poolDirs)) throw new Error("Invalid skills.poolDirs in pi-agent-hub config");
+  if (config.skills?.poolDirs?.some((dir) => typeof dir !== "string")) throw new Error("Invalid skills.poolDirs in pi-agent-hub config");
+  if (config.mcp?.catalogPath !== undefined && typeof config.mcp.catalogPath !== "string") throw new Error("Invalid mcp.catalogPath in pi-agent-hub config");
 }
 
 function expandPath(path: string): string {

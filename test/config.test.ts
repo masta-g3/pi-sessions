@@ -15,8 +15,8 @@ async function makeSkill(root: string, name: string) {
 }
 
 test("config defaults to the legacy skill pool and MCP catalog", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-config-"));
-  const env = { PI_SESSIONS_DIR: root };
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-config-"));
+  const env = { PI_AGENT_HUB_DIR: root };
 
   assert.equal(configPath(env), join(root, "config.json"));
   assert.deepEqual(await effectiveSkillPoolDirs(env), [join(root, "skills", "pool")]);
@@ -24,8 +24,8 @@ test("config defaults to the legacy skill pool and MCP catalog", async () => {
 });
 
 test("listSkillPool reads configured skill directories", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-config-"));
-  const env = { PI_SESSIONS_DIR: root };
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-config-"));
+  const env = { PI_AGENT_HUB_DIR: root };
   const shared = join(root, "shared-skills");
   const team = join(root, "team-skills");
   await makeSkill(shared, "docs");
@@ -44,8 +44,8 @@ test("listSkillPool reads configured skill directories", async () => {
 });
 
 test("loadMcpCatalog reads configured catalog path", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-sessions-config-"));
-  const env = { PI_SESSIONS_DIR: root };
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-config-"));
+  const env = { PI_AGENT_HUB_DIR: root };
   const catalogPath = join(root, "catalogs", "mcp.json");
   await mkdir(join(root, "catalogs"), { recursive: true });
   await writeFile(catalogPath, JSON.stringify({
