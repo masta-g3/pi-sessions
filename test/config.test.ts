@@ -14,7 +14,7 @@ async function makeSkill(root: string, name: string) {
   return path;
 }
 
-test("config defaults to the legacy skill pool and MCP catalog", async () => {
+test("config defaults to the built-in skill pool and MCP catalog", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-config-"));
   const env = { PI_AGENT_HUB_DIR: root };
 

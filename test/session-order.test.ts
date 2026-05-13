@@ -17,7 +17,7 @@ function session(id: string, group = "default", order?: number): ManagedSession 
   };
 }
 
-test("orderedSessions preserves registry order for legacy rows and uses persisted order", () => {
+test("orderedSessions preserves registry order for unordered rows and uses persisted order", () => {
   const sessions = [session("work", "work"), session("b"), session("a"), session("ordered", "default", -1)];
   assert.deepEqual(orderedSessions(sessions).map((item) => item.id), ["ordered", "b", "a", "work"]);
 });
@@ -27,7 +27,7 @@ test("duplicate persisted orders keep registry order", () => {
   assert.deepEqual(orderedSessions(sessions).map((item) => item.id), ["b", "a", "c"]);
 });
 
-test("nextOrderInGroup appends after unordered legacy siblings", () => {
+test("nextOrderInGroup appends after unordered siblings", () => {
   assert.equal(nextOrderInGroup([session("a"), session("b"), session("c", "work", 4)], "default"), 2);
   assert.equal(nextOrderInGroup([session("a", "default", 2), session("b")], "default"), 3);
 });

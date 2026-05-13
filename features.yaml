@@ -63,10 +63,9 @@
 - id: package-rename-001
   status: done
   title: Rename package and CLI to pi-agent-hub
-  description: Migrate package branding, installed CLI command, runtime state paths,
-    tmux session names, and user-facing docs from pi-sessions to pi-agent-hub with
-    no backward-compatible legacy binary. Include an explicit migration path for existing
-    local state.
+  description: Rename package branding, installed CLI command, runtime state paths,
+    tmux session names, and user-facing docs to pi-agent-hub with no backward-compatible
+    legacy binary or state migration.
   priority: 2
   depends_on: []
   created_at: '2026-05-09'

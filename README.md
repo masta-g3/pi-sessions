@@ -129,8 +129,6 @@ Built-in Pi theme names `light` and `dark` map to compact theme token maps. Miss
 - MCP pool socket: `<global-state>/pool/pool.sock`
 - Temporary tmux return binding state: `return-key/active.json` and `return-key/previous.tmux`
 
-On first run, `pi-agent-hub` migrates existing local state from the old `pi-sessions` default path, rewrites managed tmux names when safe, and keeps a symlink at the old state path so already-running legacy processes can keep writing heartbeats until they are restarted. `doctor` reports conflicts it cannot resolve automatically.
-
 ## Global config
 
 Optional global config lives at `config.json` under the global state directory:
