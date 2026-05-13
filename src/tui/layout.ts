@@ -1,3 +1,4 @@
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { RenderModel, RenderSession } from "./render-model.js";
 import { darkTheme, stripAnsi, styleToken, type SessionsTheme } from "./theme.js";
 
@@ -221,26 +222,10 @@ function pad(value: string, width: number): string {
 }
 
 export function truncate(value: string, width: number): string {
-  if (displayWidth(value) <= width) return value;
   if (width <= 1) return "";
-  let visible = 0;
-  let out = "";
-  for (let i = 0; i < value.length && visible < width - 1;) {
-    if (value[i] === "\u001b") {
-      const match = /^\u001b\[[0-9;]*m/.exec(value.slice(i));
-      if (match) {
-        out += match[0];
-        i += match[0].length;
-        continue;
-      }
-    }
-    out += value[i];
-    visible += 1;
-    i += 1;
-  }
-  return value.includes("\u001b[") ? `${out}…\u001b[0m` : `${out}…`;
+  return truncateToWidth(value, width, "…");
 }
 
 function displayWidth(value: string): number {
-  return [...stripAnsi(value)].length;
+  return visibleWidth(value);
 }

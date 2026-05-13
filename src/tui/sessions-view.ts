@@ -1,4 +1,4 @@
-import { Key, matchesKey, type Component } from "@mariozechner/pi-tui";
+import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
 import { attachPlan, restartConfirmMessage } from "../app/actions.js";
 import type { SessionsController } from "../app/controller.js";
 import { sessionCascadeIds } from "../core/session-tree.js";

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { buildRenderModel, retainSelectionAfterRefresh } from "../src/tui/render-model.js";
 import { renderSessions } from "../src/tui/layout.js";
 import type { ManagedSession, SessionStatus } from "../src/core/types.js";
@@ -56,7 +57,12 @@ test("narrow layout hides preview and uses compact footer", () => {
 
 test("long titles/cwd truncate without exceeding width", () => {
   const model = buildRenderModel({ sessions: [session("a", "default", "idle", "a".repeat(100))], width: 60 });
-  for (const line of renderSessions(model)) assert.ok([...line].length <= 60, line);
+  for (const line of renderSessions(model)) assert.ok(visibleWidth(line) <= 60, line);
+});
+
+test("wide preview glyphs do not exceed terminal width", () => {
+  const model = buildRenderModel({ sessions: [session("a", "default", "idle", "api")], selectedId: "a", width: 80, preview: " - npm test ✅\n - npm run package:check ✅" });
+  for (const line of renderSessions(model)) assert.ok(visibleWidth(line) <= 80, line);
 });
 
 test("error reason appears in selected metadata", () => {
