@@ -1,7 +1,7 @@
 {
   "name": "pi-agent-hub",
   "version": "1.0.2",
-  "description": "Tmux session hub for Pi coding agent sessions and subagents",
+  "description": "Pi-native tmux hub for long-running coding-agent sessions, skills, and MCP",
   "main": "dist/src/index.js",
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json && node scripts/link-cli.mjs",

@@ -1,18 +1,24 @@
 # pi-agent-hub
 
-Tmux session hub for Pi coding agent sessions and subagents.
+Pi-native tmux hub for long-running coding-agent sessions, skills, and MCP.
 
-`pi-agent-hub` is a small Pi-native port of [Agent Deck](https://github.com/asheshgoplani/agent-deck), pared down to Pi as the only agent runtime and tmux as the process substrate.
-
-Use it to keep multiple Pi sessions visible, grouped, restartable, and easy to jump between from one terminal dashboard.
-
-- `pi-hub` opens one stable dashboard tmux session.
-- Press `n` to create a managed Pi session.
-- Press `Enter` to jump into the selected session.
-- Press `Ctrl+Q` inside a managed session to return to the dashboard.
-- Optional skills and MCP pickers write project state for the selected session's primary repo.
+Use `pi-hub` to keep multiple Pi sessions visible, grouped, restartable, and easy to jump between from one terminal dashboard.
 
 ![pi-agent-hub dashboard](assets/pi-agent-hub-dashboard.png)
+
+## Why pi-agent-hub?
+
+Most agent managers try to become the runtime. `pi-agent-hub` stays small: Pi runs the agents, tmux keeps them alive, and the hub gives you one keyboard-driven dashboard to manage them.
+
+| Feature | Why it matters |
+| --- | --- |
+| Pi-native | Uses Pi sessions, extensions, skills, MCP, and project state directly. |
+| tmux-native | Sessions keep running as normal tmux sessions; you can attach, switch, or recover manually. |
+| One stable dashboard | `pi-hub` always brings you back to the same control center. |
+| Return shortcuts | `Ctrl+Q` jumps from a managed session back to the dashboard; `Alt+R` returns into rename. |
+| Project-scoped skills/MCP | Pick skills and MCP servers for the selected session's primary repo. |
+| Multi-repo without worktrees | Extra repos are symlinked into a runtime workspace; source repos are not moved or owned. |
+| Small surface area | No cloud service, no custom agent runtime, no hidden repo scanning. |
 
 ## Quick start
 
