@@ -1,19 +1,21 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import type { RenderModel, RenderSession } from "./render-model.js";
+import type { RenderModel, RenderSession, StatusCounts } from "./render-model.js";
 import { darkTheme, stripAnsi, styleToken, type SessionsTheme } from "./theme.js";
 
 export function renderSessions(model: RenderModel, theme?: SessionsTheme): string[] {
   const styles = theme ? createStyles(theme) : plainStyles();
   const width = Math.max(40, model.width);
   if (model.empty) return box(width, emptyLines(width, styles), styles);
-  if (model.noMatches) return box(width, [...noMatchLines(width, model.filter ?? "", styles), styles.border("─".repeat(width - 2)), model.footer], styles);
 
   const bodyWidth = width - 2;
+  if (model.noMatches) return box(width, [renderTopSummary(model, bodyWidth, styles), ...noMatchLines(width, model.filter ?? "", styles), styles.border("─".repeat(bodyWidth)), model.footer], styles);
+
   const split = model.showPreview ? Math.max(26, Math.min(40, Math.floor(bodyWidth * 0.38))) : bodyWidth;
+  const targetRows = bodyRowsFromHeight(model.height);
   const left = renderSessionList(model, split, styles);
-  const right = model.showPreview ? renderDetails(model.selected, bodyWidth - split - 1, model.preview, styles) : [];
-  const rows = Math.max(left.length, right.length, 8);
-  const body: string[] = [];
+  const right = model.showPreview ? renderDetails(model.selected, bodyWidth - split - 1, model.preview, model.detailsExpanded, targetRows, styles) : [];
+  const rows = Math.max(left.length, right.length, targetRows ?? 8);
+  const body: string[] = [renderTopSummary(model, bodyWidth, styles)];
   for (let i = 0; i < rows; i += 1) {
     const l = pad(left[i] ?? "", split);
     if (!model.showPreview) body.push(l);
@@ -22,6 +24,11 @@ export function renderSessions(model: RenderModel, theme?: SessionsTheme): strin
   body.push(styles.border("─".repeat(bodyWidth)));
   body.push(truncate(model.footer, bodyWidth));
   return box(width, body, styles);
+}
+
+function bodyRowsFromHeight(height: number | undefined): number | undefined {
+  if (!height || height <= 0) return undefined;
+  return Math.max(8, height - 5);
 }
 
 interface LayoutStyles {
@@ -74,35 +81,102 @@ function noMatchLines(width: number, filter: string, styles: LayoutStyles): stri
   ].map((line) => truncate(line, inner));
 }
 
+const STATUS_ORDER = [
+  ["running", "●"],
+  ["waiting", "◐"],
+  ["idle", "○"],
+  ["error", "×"],
+  ["stopped", "-"],
+] as const;
+
+function renderTopSummary(model: RenderModel, width: number, styles: LayoutStyles): string {
+  const countLabel = model.filter === undefined
+    ? `${model.summary.total} ${model.summary.total === 1 ? "session" : "sessions"}`
+    : `${model.summary.visibleTotal}/${model.summary.total} sessions`;
+  const parts = [styles.accent(countLabel)];
+  const counts = formatStatusCounts(model.summary.statusCounts, styles);
+  if (counts) parts.push(counts);
+  if (model.filter !== undefined) parts.push(styles.dim(`filter: ${model.filter}`));
+  return truncate(parts.join(" · "), width);
+}
+
 function renderSessionList(model: RenderModel, width: number, styles: LayoutStyles): string[] {
   const lines: string[] = [];
   for (const group of model.groups) {
-    const counts = [group.waitingCount ? `${group.waitingCount} waiting` : "", group.errorCount ? `${group.errorCount} error` : ""].filter(Boolean).join(" · ");
-    lines.push(twoColumn(styles.accent(group.name), counts ? styles.warning(counts) : "", width));
+    lines.push(twoColumn(styles.accent(group.name), formatStatusCounts(group.statusCounts, styles), width));
     for (const session of group.sessions) lines.push(renderSessionRow(session, width, styles));
   }
   return lines;
 }
 
-function renderDetails(session: RenderSession | undefined, width: number, preview: string, styles: LayoutStyles): string[] {
+function renderDetails(session: RenderSession | undefined, width: number, preview: string, expanded: boolean, targetRows: number | undefined, styles: LayoutStyles): string[] {
   if (!session) return ["No session selected"];
+  const lines = expanded ? expandedDetails(session, width, styles) : compactDetails(session, width, styles);
+  lines.push("", styles.border("── preview ────────────────────────────────"));
+  const previewBudget = Math.max(4, (targetRows ?? lines.length + 12) - lines.length);
+  const previewLines = preview.trimEnd() ? preview.trimEnd().split("\n").slice(-previewBudget) : ["preview empty"];
+  lines.push(...previewLines);
+  return lines.map((line) => truncate(line, width));
+}
+
+function titleStatusRow(session: RenderSession, width: number, styles: LayoutStyles): string {
+  const status = styles.status(session.displayStatus, `${session.symbol} ${session.displayStatus}`);
+  const statusWidth = displayWidth(status);
+  if (statusWidth >= width) return truncate(status, width);
+  const title = truncate(styles.accent(session.title), Math.max(0, width - statusWidth - 2));
+  const gap = Math.max(1, width - displayWidth(title) - statusWidth);
+  return `${title}${" ".repeat(gap)}${status}`;
+}
+
+function compactDetails(session: RenderSession, width: number, styles: LayoutStyles): string[] {
+  const lines = [titleStatusRow(session, width, styles)];
+  if (session.kind === "subagent") {
+    lines.push(truncate([`agent ${session.agentName ?? "subagent"}`, session.taskPreview ? `task ${session.taskPreview}` : ""].filter(Boolean).join(" · "), width));
+  } else {
+    const parts = [truncatePath(session.cwd, Math.max(8, Math.floor(width * 0.6)))];
+    if (session.repoCount > 1) parts.push(`${session.repoCount} repos`);
+    lines.push(truncate(parts.join(" · "), width));
+  }
+  const capabilities = compactCapabilities(session, width, styles);
+  if (capabilities) lines.push(capabilities);
+  if (session.error) lines.push(styles.error(`error     ${session.error}`));
+  return lines;
+}
+
+function compactCapabilities(session: RenderSession, width: number, styles: LayoutStyles): string | undefined {
+  const parts = [];
+  if ((session.skillCount ?? 0) > 0) parts.push(`skills ${session.skillCount}`);
+  if (session.enabledMcpServers.length) parts.push(`mcp ${session.enabledMcpServers.length}`);
+  if (!parts.length) return undefined;
+  return twoColumn(styles.muted(parts.join(" · ")), styles.dim("s/m edit"), width);
+}
+
+function expandedDetails(session: RenderSession, width: number, styles: LayoutStyles): string[] {
   const lines = [
-    twoColumn(styles.accent(session.title), styles.status(session.displayStatus, `${session.displayStatus} ${session.symbol}`), width),
+    titleStatusRow(session, width, styles),
     session.kind === "subagent" ? `agent     ${session.agentName ?? "subagent"}` : undefined,
     session.taskPreview ? `task      ${session.taskPreview}` : undefined,
-    `cwd       ${session.cwd}`,
+    `cwd       ${truncatePath(session.cwd, Math.max(0, width - 10))}`,
     `repos     ${session.repoCount}`,
     `group     ${session.group}`,
   ].filter((line): line is string => Boolean(line));
-  for (const cwd of session.additionalCwds) lines.push(`extra     ${cwd}`);
-  if (session.workspaceCwd) lines.push(`runtime   ${session.workspaceCwd}`);
-  if (session.sessionFile) lines.push(`session   ${session.sessionFile}`);
+  for (const cwd of session.additionalCwds) lines.push(`extra     ${truncatePath(cwd, Math.max(0, width - 10))}`);
+  if (session.workspaceCwd) lines.push(`runtime   ${truncatePath(session.workspaceCwd, Math.max(0, width - 10))}`);
+  if (session.sessionFile) lines.push(`session   ${truncatePath(session.sessionFile, Math.max(0, width - 10))}`);
   if (session.enabledMcpServers.length) lines.push(`mcp       ${session.enabledMcpServers.join(", ")}`);
+  if (session.resultSummary) lines.push(`result    ${session.resultSummary}`);
   if (session.error) lines.push(styles.error(`error     ${session.error}`));
-  lines.push("", styles.border("── preview (read-only) ───────────────────────"));
-  const previewLines = preview.trimEnd() ? preview.trimEnd().split("\n").slice(-12) : ["preview empty"];
-  lines.push(...previewLines);
-  return lines.map((line) => truncate(line, width));
+  return lines;
+}
+
+function formatStatusCounts(counts: StatusCounts, styles: LayoutStyles): string {
+  return STATUS_ORDER
+    .flatMap(([status, symbol]) => counts[status] ? [styles.status(status, `${symbol}${counts[status]}`)] : [])
+    .join(" ");
+}
+
+function truncatePath(path: string, width: number): string {
+  return truncateValue(path, width, "start");
 }
 
 function renderSessionRow(session: RenderSession, width: number, styles: LayoutStyles): string {
@@ -211,9 +285,11 @@ function box(width: number, body: string[], styles: LayoutStyles): string[] {
 
 function twoColumn(left: string, right: string, width: number): string {
   if (!right) return truncate(left, width);
-  const gap = width - displayWidth(left) - displayWidth(right);
-  if (gap < 1) return truncate(`${left} ${right}`, width);
-  return `${left}${" ".repeat(gap)}${right}`;
+  const rightWidth = displayWidth(right);
+  if (rightWidth >= width) return truncate(right, width);
+  const visibleLeft = truncate(left, Math.max(0, width - rightWidth - 1));
+  const gap = Math.max(1, width - displayWidth(visibleLeft) - rightWidth);
+  return `${visibleLeft}${" ".repeat(gap)}${right}`;
 }
 
 function pad(value: string, width: number): string {

@@ -87,6 +87,21 @@ export async function runTui(): Promise<void> {
   const skillPool = await listSkillPool();
   const mcpCatalog = await loadMcpCatalog();
   let historyCwds = rankedRepoCwds((await loadRepoHistory()).repos);
+  const skillCountCache = new Map<string, number>();
+  const skillCountLoads = new Set<string>();
+  const skillCount = (projectCwd: string): number | undefined => {
+    const cached = skillCountCache.get(projectCwd);
+    if (cached !== undefined) return cached;
+    if (!skillCountLoads.has(projectCwd)) {
+      skillCountLoads.add(projectCwd);
+      void loadProjectSkillsState(projectCwd).then((state) => {
+        skillCountCache.set(projectCwd, state.attached.length);
+        skillCountLoads.delete(projectCwd);
+        tui.requestRender();
+      }).catch(() => { skillCountLoads.delete(projectCwd); });
+    }
+    return undefined;
+  };
   let stopLoop: RefreshLoopHandle | undefined;
   let stopThemeLoop: (() => void) | undefined;
   let stopActionLoop: (() => void) | undefined;
@@ -181,10 +196,12 @@ export async function runTui(): Promise<void> {
       return skillPool.map((skill) => ({ name: skill.name, enabled: enabledSkillNames.has(skill.name) }));
     },
     async applySkills(items) {
-      await setProjectSkills(selectedProjectCwd(controller.selected(), cwd), items.flatMap((item) => {
+      const projectCwd = selectedProjectCwd(controller.selected(), cwd);
+      const state = await setProjectSkills(projectCwd, items.flatMap((item) => {
         const skill = skillPool.find((entry) => entry.name === item.name);
         return skill ? [{ name: item.name, sourcePath: skill.path, enabled: item.enabled }] : [];
       }));
+      skillCountCache.set(projectCwd, state.attached.length);
     },
     async mcpServers() {
       const state = await loadProjectMcpState(selectedProjectCwd(controller.selected(), cwd));
@@ -201,6 +218,8 @@ export async function runTui(): Promise<void> {
       child.stdin.on("error", () => {});
       child.stdin.end(text);
     },
+    skillCount,
+    terminalRows: () => terminal.rows,
   }, theme);
   stopThemeLoop = startThemeRefreshLoop({
     initialTheme: theme,

@@ -4,6 +4,8 @@ Pi-native tmux hub for long-running coding-agent sessions, skills, and MCP.
 
 Use `pi-hub` to keep multiple Pi sessions visible, grouped, restartable, and easy to jump between from one terminal dashboard.
 
+New here? See [Features](docs/FEATURES.md) for the dashboard workflow and core capabilities.
+
 ![pi-agent-hub dashboard](assets/pi-agent-hub-dashboard.png)
 
 ## Why pi-agent-hub?
@@ -36,6 +38,9 @@ Inside the dashboard:
 | --- | --- |
 | `n` | Create a new Pi session |
 | `Enter` | Open or switch to the selected session |
+| `/` | Filter sessions |
+| `?` | Show help and status legend |
+| `i` | Toggle compact/full selected-session info |
 | `Ctrl+Q` | Return from a managed session to the dashboard |
 | `r` | Rename the selected session |
 | `R` | Restart the selected session |
@@ -117,7 +122,9 @@ The dashboard runs `pi-hub tui` inside tmux so it does not recursively create da
 
 ## TUI behavior
 
-When the dashboard is running inside tmux, `Enter` switches the current tmux client to the selected managed session and shows the equivalent `tmux switch-client -t <session>` command. Opening a `waiting` session marks it read before attaching, so it can show `idle` after you return; `a` remains the manual mark-read shortcut.
+The dashboard top line summarizes visible sessions and nonzero status counts in fixed order: `●` running/starting, `◐` waiting, `○` idle, `×` error, `-` stopped. Press `?` for the full help/legend and `i` to toggle compact vs full selected-session metadata.
+
+When the dashboard is running inside tmux, `Enter` switches the current tmux client to the selected managed session and briefly shows the equivalent `tmux switch-client -t <session>` command. Opening a `waiting` session marks it read before attaching, so it can show `idle` after you return; `a` remains the manual mark-read shortcut.
 
 Return shortcuts from a managed `pi-agent-hub-*` session:
 

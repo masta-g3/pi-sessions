@@ -46,15 +46,17 @@ test("filter input supports cursor movement", () => {
   assert.equal(controller.snapshot().filter, "apXi");
 });
 
-test("committed filter footer uses esc clear and escape clears", () => {
+test("committed filter moves to top summary and escape clears", () => {
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api"), session("docs", "docs")] });
   const view = new SessionsView(controller, () => {});
   view.handleInput("/");
   view.handleInput("d");
   view.handleInput("o");
   view.handleInput("\r");
-  assert.match(view.render(100).join("\n"), /esc clear/);
-  assert.doesNotMatch(view.render(100).join("\n"), /enter done/);
+  const rendered = view.render(100).join("\n");
+  assert.match(rendered, /1\/2 sessions .* filter: do/);
+  assert.match(rendered, /\? Help/);
+  assert.doesNotMatch(rendered, /enter done/);
   view.handleInput("\u001b");
   assert.equal(controller.snapshot().filter, undefined);
 });
@@ -77,7 +79,13 @@ test("slash on empty state does not trap q in filter mode", () => {
 test("help overlay opens and closes", () => {
   const view = new SessionsView(new SessionsController(), () => {});
   view.handleInput("?");
-  assert.match(view.render(80).join("\n"), /pi agent hub help/);
+  const help = view.render(80).join("\n");
+  assert.match(help, /pi agent hub help/);
+  assert.match(help, /Status legend/);
+  assert.match(help, /Ctrl\+Q/);
+  assert.match(help, /Alt\+R/);
+  assert.match(help, /i toggle/);
+  assert.match(help, /zero counts are hidden/);
   view.handleInput("\u001b");
   assert.doesNotMatch(view.render(80).join("\n"), /pi agent hub help/);
 });
@@ -88,6 +96,15 @@ test("q quits from help overlay", () => {
   view.handleInput("?");
   view.handleInput("q");
   assert.equal(stopped, true);
+});
+
+
+test("help overlay stays within terminal width", () => {
+  const view = new SessionsView(new SessionsController(), () => {});
+  view.handleInput("?");
+  for (const width of [40, 80]) {
+    for (const line of view.render(width)) assert.ok(stripAnsi(line).length <= width, stripAnsi(line));
+  }
 });
 
 test("J K and shift arrows reorder selected session", () => {
@@ -135,10 +152,11 @@ test("enter triggers attach action outside tmux", () => {
   }
 });
 
-test("enter inside tmux switches client and keeps command visible without touching clipboard", () => {
+test("enter inside tmux flashes switch command then restores footer without touching clipboard", () => {
   const oldTmux = process.env.TMUX;
   process.env.TMUX = "/tmp/tmux";
   try {
+    let now = 100;
     let switched: string | undefined;
     let copied: string | undefined;
     const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
@@ -146,6 +164,7 @@ test("enter inside tmux switches client and keeps command visible without touchi
       attachOutsideTmux: () => { throw new Error("outside attach should not run inside tmux"); },
       switchInsideTmux: (tmuxSession) => { switched = tmuxSession; },
       copy: (text) => { copied = text; },
+      now: () => now,
     });
 
     view.handleInput("\r");
@@ -153,6 +172,10 @@ test("enter inside tmux switches client and keeps command visible without touchi
     assert.equal(switched, "pi-agent-hub-api");
     assert.equal(copied, undefined);
     assert.match(view.render(100).join("\n"), /tmux switch-client -t pi-agent-hub-api/);
+    now = 1_700;
+    const rendered = view.render(100).join("\n");
+    assert.doesNotMatch(rendered, /tmux switch-client -t pi-agent-hub-api/);
+    assert.match(rendered, /Enter Open .* i Info .* \? Help/);
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;
@@ -238,13 +261,16 @@ test("inside tmux switch action errors show in footer", async () => {
   const oldTmux = process.env.TMUX;
   process.env.TMUX = "/tmp/tmux";
   try {
+    let now = 100;
     const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
     const view = new SessionsView(controller, () => {}, {
       switchInsideTmux: async () => { throw new Error("switch failed"); },
+      now: () => now,
     });
 
     view.handleInput("\r");
     await new Promise((resolve) => setImmediate(resolve));
+    now = 2_000;
 
     assert.match(view.render(100).join("\n"), /switch failed: switch failed/);
   } finally {
@@ -579,6 +605,41 @@ test("new form preserves user-edited group across cwd changes", () => {
   view.handleInput("\r");
   assert.deepEqual(created, { cwd: "/tmp/web", group: "backend", title: "api" });
 });
+
+test("selected session surfaces cached skill count", () => {
+  const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
+  const view = new SessionsView(controller, () => {}, { skillCount: (cwd) => cwd === "/tmp/api" ? 2 : undefined });
+
+  assert.match(view.render(120).join("\n"), /skills 2\s+s\/m edit/);
+});
+
+
+test("i toggles selected session metadata expansion", () => {
+  const controller = new SessionsController({
+    version: 1,
+    sessions: [{
+      ...session("api", "api"),
+      cwd: "/repo/api",
+      additionalCwds: ["/repo/web"],
+      workspaceCwd: "/state/workspaces/api",
+    }],
+  });
+  const view = new SessionsView(controller, () => {});
+
+  const compact = view.render(120).join("\n");
+  assert.match(compact, /\/repo\/api · 2 repos/);
+  assert.doesNotMatch(compact, /group default/);
+  assert.doesNotMatch(compact, /extra\s+\/repo\/web/);
+
+  view.handleInput("i");
+  const expanded = view.render(120).join("\n");
+  assert.match(expanded, /extra\s+\/repo\/web/);
+  assert.match(expanded, /runtime\s+\/state\/workspaces\/api/);
+
+  view.handleInput("i");
+  assert.doesNotMatch(view.render(120).join("\n"), /extra\s+\/repo\/web/);
+});
+
 
 test("delete dialog requires confirmation and escape cancels", () => {
   let deleted: string | undefined;
@@ -1094,7 +1155,7 @@ test("filter matching ignores parent cwd directories for action selection", () =
   assert.deepEqual(restarted, []);
 });
 
-test("starting no-match filter clears stale attach message", () => {
+test("starting no-match filter clears stale attach flash", () => {
   const oldTmux = process.env.TMUX;
   process.env.TMUX = "/tmp/tmux";
   try {

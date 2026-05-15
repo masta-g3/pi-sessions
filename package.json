@@ -60,6 +60,7 @@
     "dist/src",
     "dist/cli.js",
     "README.md",
+    "docs/FEATURES.md",
     "assets/*.png"
   ],
   "pi": {

@@ -17,6 +17,7 @@ export interface RenderSession {
   error?: string;
   sessionFile?: string;
   enabledMcpServers: string[];
+  skillCount?: number;
   kind: "main" | "subagent";
   depth: number;
   parentId?: string;
@@ -25,39 +26,58 @@ export interface RenderSession {
   resultSummary?: string;
 }
 
+export interface StatusCounts {
+  running: number;
+  waiting: number;
+  idle: number;
+  error: number;
+  stopped: number;
+}
+
 export interface RenderGroup {
   name: string;
-  waitingCount: number;
-  errorCount: number;
+  statusCounts: StatusCounts;
   sessions: RenderSession[];
+}
+
+export interface RenderSummary {
+  total: number;
+  visibleTotal: number;
+  statusCounts: StatusCounts;
 }
 
 export interface RenderModel {
   width: number;
+  height?: number;
   empty: boolean;
   noMatches: boolean;
   showPreview: boolean;
   compactFooter: boolean;
   groups: RenderGroup[];
+  summary: RenderSummary;
   selected?: RenderSession;
   footer: string;
   filter?: string;
   preview: string;
+  detailsExpanded: boolean;
 }
 
 export interface BuildRenderModelInput {
   sessions: ManagedSession[];
   selectedId?: string;
   width: number;
+  height?: number;
   filter?: string;
   filterEditing?: boolean;
   preview?: string;
+  detailsExpanded?: boolean;
+  selectedSkillCount?: number;
 }
 
 export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
   const visible = orderedSessionRows(input.sessions, input.filter);
   const selectedId = pickSelectedId(visible, input.selectedId);
-  const mapped = visible.map((session) => toRenderSession(session, session.id === selectedId, input.sessions));
+  const mapped = visible.map((session) => toRenderSession(session, session.id === selectedId, input.sessions, session.id === selectedId ? input.selectedSkillCount : undefined));
   const groupsByName = new Map<string, RenderSession[]>();
   for (const session of mapped) {
     const group = groupsByName.get(session.group) ?? [];
@@ -69,8 +89,7 @@ export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
     .sort(([a], [b]) => groupOrder(a, b))
     .map(([name, sessions]) => ({
       name,
-      waitingCount: sessions.filter((session) => session.status === "waiting").length,
-      errorCount: sessions.filter((session) => session.status === "error").length,
+      statusCounts: countRenderSessions(sessions),
       sessions,
     } satisfies RenderGroup));
 
@@ -82,14 +101,17 @@ export function buildRenderModel(input: BuildRenderModelInput): RenderModel {
     showPreview: input.width >= 80,
     compactFooter,
     groups,
+    summary: {
+      total: input.sessions.length,
+      visibleTotal: visible.length,
+      statusCounts: countRenderSessions(mapped),
+    },
+    ...(input.height ? { height: input.height } : {}),
     selected: mapped.find((session) => session.selected),
-    footer: input.filter !== undefined
-      ? input.filterEditing
-        ? `filter: ${input.filter || ""}  • esc clear • enter done`
-        : `filter: ${input.filter || ""}  • esc clear`
-      : compactFooter ? "? help • / filter • enter • r rename • g group • d delete • q" : "↑↓/jk move • K/J reorder • enter attach • n new • r rename • f fork • g move • G rename group • R restart • d delete • s skills • m mcp • q",
+    footer: compactFooter ? "Enter · n · /  │  i · r · R  │  ?" : "Enter Open · n New · / Filter  │  i Info · r Rename · R Restart  │  ? Help",
     filter: input.filter,
     preview: input.preview ?? "",
+    detailsExpanded: input.detailsExpanded ?? false,
   };
 }
 
@@ -117,7 +139,7 @@ function pickSelectedId(sessions: ManagedSession[], selectedId: string | undefin
   return sessions[0]?.id;
 }
 
-function toRenderSession(session: ManagedSession, selected: boolean, sessions: ManagedSession[]): RenderSession {
+function toRenderSession(session: ManagedSession, selected: boolean, sessions: ManagedSession[], skillCount: number | undefined): RenderSession {
   const displayStatus = displayStatusFor(session.status);
   return {
     id: session.id,
@@ -134,6 +156,7 @@ function toRenderSession(session: ManagedSession, selected: boolean, sessions: M
     error: session.error,
     sessionFile: session.sessionFile,
     enabledMcpServers: session.enabledMcpServers ?? [],
+    ...(skillCount !== undefined ? { skillCount } : {}),
     kind: session.kind ?? "main",
     depth: sessionDepth(session, sessions),
     parentId: session.parentId,
@@ -156,4 +179,14 @@ function symbolFor(status: RenderSession["displayStatus"]): string {
     case "error": return "×";
     case "stopped": return "-";
   }
+}
+
+function emptyStatusCounts(): StatusCounts {
+  return { running: 0, waiting: 0, idle: 0, error: 0, stopped: 0 };
+}
+
+function countRenderSessions(sessions: RenderSession[]): StatusCounts {
+  const counts = emptyStatusCounts();
+  for (const session of sessions) counts[session.displayStatus] += 1;
+  return counts;
 }

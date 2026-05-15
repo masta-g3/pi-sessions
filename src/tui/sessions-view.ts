@@ -76,7 +76,9 @@ export interface SessionsViewActions {
   mcpServers?: () => PickerItem[] | Promise<PickerItem[]>;
   applyMcpServers?: (items: PickerItem[]) => void | Promise<void>;
   copy?: (text: string) => void;
+  skillCount?: (cwd: string) => number | undefined;
   now?: () => number;
+  terminalRows?: () => number;
 }
 
 export class SessionsView implements Component {
@@ -91,6 +93,8 @@ export class SessionsView implements Component {
   private renameGroupForm: FormState<"to"> | undefined;
   private picker: PickerState | undefined;
   private message: string | undefined;
+  private flash: { text: string; expiresAt: number } | undefined;
+  private detailsExpanded = false;
   private pendingRestart: { sessionId: string; expiresAt: number } | undefined;
   private deleteTargetId: string | undefined;
   private renameGroupFrom: string | undefined;
@@ -164,6 +168,7 @@ export class SessionsView implements Component {
     if (matchesKey(data, Key.escape)) {
       this.clearPendingRestart();
       this.message = undefined;
+      this.clearFlash();
       if (this.controller.snapshot().filter !== undefined) this.controller.setFilter(undefined);
       return;
     }
@@ -198,12 +203,19 @@ export class SessionsView implements Component {
     else if (data === "d") this.startDeleteDialog();
     else if (data === "s") this.startPicker("skills");
     else if (data === "m") this.startPicker("mcp");
+    else if (data === "i") {
+      this.clearPendingRestart();
+      this.clearFlash();
+      this.detailsExpanded = !this.detailsExpanded;
+    }
     else if (data === "a") {
       this.clearPendingRestart();
+      this.clearFlash();
       this.runAction(() => this.actions.acknowledge ? this.actions.acknowledge() : this.controller.acknowledgeSelected(), "marking read...");
     }
     else if (data === "?") {
       this.clearPendingRestart();
+      this.clearFlash();
       this.mode = "help";
     }
     else if (data === "q") this.stop();
@@ -211,6 +223,7 @@ export class SessionsView implements Component {
 
   render(width: number): string[] {
     this.clearExpiredConfirmation();
+    this.clearExpiredFlash();
     if (this.mode === "help") return renderHelp(width);
     if ((this.mode === "skills" || this.mode === "mcp") && this.picker) return renderTwoColumnPicker(this.picker, width, this.theme);
     if (this.mode === "repoPicker" && this.repoPicker) return renderRepoPicker(this.repoPicker, width, this.theme);
@@ -222,6 +235,7 @@ export class SessionsView implements Component {
     if (this.mode === "delete") return this.renderDeleteDialog(width);
     if (this.pendingRestart && this.message?.startsWith("press R again")) return this.renderRestartDialog(width);
     const snapshot = this.controller.snapshot();
+    const selected = this.controller.selected();
     const lines = renderSessions(buildRenderModel({
       sessions: snapshot.registry.sessions,
       selectedId: snapshot.selectedId,
@@ -229,9 +243,13 @@ export class SessionsView implements Component {
       filter: this.mode === "filter" ? this.filterDraft.value : snapshot.filter,
       filterEditing: this.mode === "filter",
       preview: snapshot.preview,
+      detailsExpanded: this.detailsExpanded,
+      height: this.actions.terminalRows?.() ?? process.stdout.rows,
+      selectedSkillCount: selected ? this.actions.skillCount?.(selected.cwd) : undefined,
     }), this.theme);
     const withFooter = this.mode === "filter" ? replaceFooter(lines, filterFooter(this.filterDraft, this.theme), this.theme) : lines;
-    return this.message ? replaceFooter(withFooter, this.message, this.theme) : withFooter;
+    if (this.message) return replaceFooter(withFooter, this.message, this.theme);
+    return this.flash ? replaceFooter(withFooter, this.flash.text, this.theme) : withFooter;
   }
 
   invalidate(): void {}
@@ -251,6 +269,7 @@ export class SessionsView implements Component {
   private startFilter() {
     if (this.controller.snapshot().registry.sessions.length === 0) return;
     this.clearPendingRestart();
+    this.clearFlash();
     this.message = undefined;
     this.mode = "filter";
     this.filterDraft = createTextInput(this.controller.snapshot().filter ?? "");
@@ -259,6 +278,7 @@ export class SessionsView implements Component {
 
   private startNewDialog() {
     this.clearPendingRestart();
+    this.clearFlash();
     const ctx = this.actions.newFormContext?.() ?? { cwd: process.cwd() };
     this.mode = "new";
     this.newForm = createNewForm(ctx);
@@ -273,6 +293,7 @@ export class SessionsView implements Component {
       return;
     }
     this.clearPendingRestart();
+    this.clearFlash();
     this.mode = "fork";
     this.forkForm = createForm<"group" | "title">([
       { key: "group", label: "group", value: selected.group, hint: "session group label" },
@@ -289,6 +310,7 @@ export class SessionsView implements Component {
       return;
     }
     this.clearPendingRestart();
+    this.clearFlash();
     this.mode = "group";
     this.moveGroupForm = createForm<"group">([
       { key: "group", label: "group", value: "", hint: "existing or new group label" },
@@ -304,6 +326,7 @@ export class SessionsView implements Component {
       return;
     }
     this.clearPendingRestart();
+    this.clearFlash();
     this.returnAfterRenameTmuxSession = returnAfterRenameTmuxSession;
     this.mode = "rename";
     this.renameSessionForm = createForm<"title">([
@@ -320,6 +343,7 @@ export class SessionsView implements Component {
       return;
     }
     this.clearPendingRestart();
+    this.clearFlash();
     this.mode = "groupRename";
     this.renameGroupFrom = selected.group;
     this.renameGroupForm = createForm<"to">([
@@ -330,6 +354,7 @@ export class SessionsView implements Component {
 
   private startPicker(mode: "skills" | "mcp") {
     this.clearPendingRestart();
+    this.clearFlash();
     const result = mode === "skills" ? this.actions.skills?.() : this.actions.mcpServers?.();
     if (!result) {
       this.message = `${mode}: no catalog loaded`;
@@ -362,6 +387,7 @@ export class SessionsView implements Component {
 
   private attachSelected() {
     this.clearPendingRestart();
+    this.clearFlash();
     this.message = undefined;
     const selected = this.controller.selected();
     if (!selected) return;
@@ -401,7 +427,7 @@ export class SessionsView implements Component {
         this.message = plan.message;
         return;
       }
-      this.message = `switching: ${plan.command} · Ctrl+Q returns`;
+      this.flashMessage(`switching: ${plan.command} · Ctrl+Q returns`);
       try {
         const result = switchInsideTmux(selected.tmuxSession);
         if (isPromise(result)) void result.catch((error: unknown) => { this.message = `switch failed: ${errorMessage(error)}`; });
@@ -415,6 +441,7 @@ export class SessionsView implements Component {
 
   private reorderSelected(delta: -1 | 1) {
     this.clearPendingRestart();
+    this.clearFlash();
     this.message = undefined;
     if (this.controller.snapshot().filter !== undefined) {
       this.message = "clear filter to reorder";
@@ -429,6 +456,7 @@ export class SessionsView implements Component {
   }
 
   private restartSelected() {
+    this.clearFlash();
     const selected = this.controller.selected();
     if (!selected) return;
     if (selected.kind === "subagent") {
@@ -450,6 +478,7 @@ export class SessionsView implements Component {
     const selected = this.controller.selected();
     if (!selected) return;
     this.clearPendingRestart();
+    this.clearFlash();
     this.mode = "delete";
     this.deleteTargetId = selected.id;
     this.message = undefined;
@@ -500,6 +529,21 @@ export class SessionsView implements Component {
   private clearPendingRestart() {
     this.pendingRestart = undefined;
     if (this.message?.startsWith("press R again")) this.message = undefined;
+  }
+
+  private flashMessage(text: string, ttlMs = 1_500): void {
+    const now = this.actions.now?.() ?? Date.now();
+    this.flash = { text, expiresAt: now + ttlMs };
+  }
+
+  private clearFlash(): void {
+    this.flash = undefined;
+  }
+
+  private clearExpiredFlash(): void {
+    if (!this.flash) return;
+    const now = this.actions.now?.() ?? Date.now();
+    if (this.flash.expiresAt <= now) this.flash = undefined;
   }
 
   private clearExpiredConfirmation() {
@@ -986,17 +1030,38 @@ function renderHelp(width: number): string[] {
   const lines = [
     "pi agent hub help",
     "",
-    "navigation   ↑↓/j/k move cursor   K/J reorder   / filter",
-    "sessions     enter attach   n new   r rename   f fork   g/G group   R restart   d delete   a mark read",
-    "config       s skills       m mcp",
-    "system       q quit         esc cancel",
+    "Navigation",
+    "  ↑↓/j/k move selection     Enter open/switch     / filter",
+    "  K/J reorder in group      q quit                Esc cancel/clear",
+    "",
+    "Sessions",
+    "  n new     r rename     f fork     g move group     G rename group",
+    "  R restart (press R again)     d delete     a mark read",
+    "",
+    "Project state",
+    "  s skills picker     m MCP picker",
+    "",
+    "Return from managed sessions",
+    "  Ctrl+Q return to dashboard     Alt+R rename current session",
+    "",
+    "Status legend",
+    "  ● running/starting     ◐ waiting     ○ idle     × error     - stopped",
+    "  zero counts are hidden in group and top summary",
+    "",
+    "Metadata",
+    "  i toggle compact/full selected-session info",
   ];
   const inner = Math.max(40, width) - 2;
   return [
     `┌${"─".repeat(inner)}┐`,
-    ...lines.map((line) => `│${line.padEnd(inner).slice(0, inner)}│`),
+    ...lines.map((line) => `│${padVisibleLine(line, inner)}│`),
     `└${"─".repeat(inner)}┘`,
   ];
+}
+
+function padVisibleLine(line: string, width: number): string {
+  const text = truncateVisible(line, width);
+  return `${text}${" ".repeat(Math.max(0, width - stripAnsi(text).length))}`;
 }
 
 function replaceFooter(lines: string[], message: string, theme?: SessionsTheme): string[] {
