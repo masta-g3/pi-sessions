@@ -30,6 +30,26 @@ Ctrl+Q returns to the dashboard
 | Project MCP servers | `m` picker | Enable MCP tools for the selected session's primary repo. |
 | Subagent rows | Automatic when `pi-tmux-subagents` reports them | See child agent work nested under the parent session. |
 
+## Dashboard keys
+
+| Key | Action |
+| --- | --- |
+| `n` | Create a new Pi session |
+| `Enter` | Open or switch to the selected session |
+| `/` | Filter sessions |
+| `p` | Send a one-line message to the selected live session without opening it |
+| `?` | Show help and status legend |
+| `i` | Toggle compact/full selected-session info |
+| `Ctrl+Q` | Return from a managed session to the dashboard |
+| `r` | Rename the selected session in the dashboard footer |
+| `R` | Restart the selected session |
+| `g` | Move the selected session to a group |
+| `G` | Rename the selected session's group |
+| `K` / `J` | Move the selected session up/down within its group |
+| `Shift+Up` / `Shift+Down` | Same as `K` / `J` |
+| `s` | Pick project skills |
+| `m` | Pick project MCP servers |
+
 ## Status vocabulary
 
 ```text
@@ -42,6 +62,68 @@ Ctrl+Q returns to the dashboard
 
 Zero counts are hidden in the dashboard summaries, so `◐2 ×1` means only waiting and error sessions are currently visible.
 
+The dashboard top line summarizes visible sessions and nonzero status counts in fixed order. Press `?` for the full help/legend and `i` to toggle compact vs full selected-session metadata.
+
+## Dashboard tmux behavior
+
+Running `pi-hub` uses one stable tmux session named `pi-agent-hub`:
+
+- outside tmux: create or attach `pi-agent-hub`;
+- inside tmux: create it detached if needed, then switch the current client to it.
+
+The dashboard runs `pi-hub tui` inside tmux so it does not recursively create dashboards. It also applies its own tmux status bar instead of inheriting global tmux theme chrome.
+
+When the dashboard is running inside tmux, `Enter` switches the current tmux client to the selected managed session and briefly shows the equivalent `tmux switch-client -t <session>` command. Opening a `waiting` session marks it read before attaching, so it can show `idle` after you return; `a` remains the manual mark-read shortcut.
+
+If the dashboard tmux session is missing, the temporary return binding recreates it before switching back.
+
+## Return shortcuts
+
+Return shortcuts from a managed `pi-agent-hub-*` session:
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+Q` | Return to the dashboard |
+| `Alt+R` | Return to the dashboard rename dialog for the current session, then switch back after saving |
+
+## New session form
+
+Press `n` to create a session.
+
+| Field | Default |
+| --- | --- |
+| Primary cwd | Selected session's cwd, or the dashboard cwd if nothing is selected |
+| Extra repos | Selected session's extra repos, if any |
+| Group | Primary cwd folder name |
+| Title | Random two-word slug |
+
+While editing the form:
+
+| Key | Action |
+| --- | --- |
+| `Alt+A` | Add another repo row |
+| `Alt+X` | Remove the focused extra repo row |
+| `Ctrl+N` / `Ctrl+P` | Cycle known cwd suggestions |
+| `Ctrl+O` | Open the recent-repo picker |
+
+Extra repos are symlinked into one runtime workspace. The primary cwd remains the main project for skills and MCP state.
+
+## Groups and session actions
+
+Groups are simple labels on sessions.
+
+| Key | Action |
+| --- | --- |
+| `g` | Move the selected session to a group |
+| `G` | Rename the selected session's group everywhere |
+| `K` / `J` | Move the selected session up/down within its group |
+| `Shift+Up` / `Shift+Down` | Same as `K` / `J` |
+| `p` | Send a one-line message to the selected live session without opening it |
+| `r` | Rename the selected session in the dashboard footer |
+| `R` | Restart the selected session |
+
+Reordering is disabled while a filter is active.
+
 ## Project-scoped Skills and MCP
 
 Skills and MCP state attach to the selected session's primary repo:
@@ -50,6 +132,8 @@ Skills and MCP state attach to the selected session's primary repo:
 <project>/.pi/sessions/skills.json
 <project>/.pi/sessions/mcp.json
 ```
+
+The `s` picker lists skills from the configured skill pool directories and writes the final project selection once. The `m` picker writes enabled MCP servers for the selected project. If no session is selected, both pickers fall back to the dashboard current working directory.
 
 For multi-repo sessions, extra repos are available in the runtime workspace, but Skills/MCP still belong to the primary repo. Restart the session after changing Skills or MCP so Pi reloads tools.
 

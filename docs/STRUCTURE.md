@@ -17,6 +17,8 @@ src/
 test/                    Node test-runner tests compiled by TypeScript
 docs/STRUCTURE.md        this developer onboarding guide
 docs/FEATURES.md         user-facing feature map and dashboard workflow
+docs/CONFIG.md           runtime state, global config, themes, Skills/MCP setup
+docs/DEVELOPMENT.md      local setup, tests, package checks, smoke testing
 ```
 
 ## Runtime state
