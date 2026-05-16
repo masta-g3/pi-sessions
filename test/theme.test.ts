@@ -53,6 +53,91 @@ test("loadSessionsTheme reads project settings before global settings", async ()
   assert.equal(theme.accent, "#123456");
 });
 
+test("loadSessionsTheme loads selected theme from a global git package", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
+  const agent = join(root, "agent");
+  const packageRoot = join(agent, "git", "github.com", "hasit", "pi-community-themes");
+  await mkdir(join(packageRoot, "themes"), { recursive: true });
+  await writeFile(join(agent, "settings.json"), JSON.stringify({
+    theme: "solarized-light",
+    packages: ["git:https://github.com/hasit/pi-community-themes"],
+  }), "utf8");
+  await writeFile(join(packageRoot, "package.json"), JSON.stringify({ pi: { themes: ["./themes"] } }), "utf8");
+  await writeFile(join(packageRoot, "themes", "solarized-light.json"), JSON.stringify({ colors: { accent: "#268bd2" } }), "utf8");
+
+  const theme = await loadSessionsTheme({ env: { PI_CODING_AGENT_DIR: agent } });
+  assert.equal(theme.accent, "#268bd2");
+});
+
+test("loadSessionsTheme supports package theme file entries", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
+  const agent = join(root, "agent");
+  const packageRoot = join(agent, "git", "github.com", "hasit", "pi-community-themes");
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(join(agent, "settings.json"), JSON.stringify({
+    theme: "solarized-light",
+    packages: ["git:github.com/hasit/pi-community-themes"],
+  }), "utf8");
+  await writeFile(join(packageRoot, "package.json"), JSON.stringify({ pi: { themes: ["./solarized-light.json"] } }), "utf8");
+  await writeFile(join(packageRoot, "solarized-light.json"), JSON.stringify({ colors: { accent: "#2aa198" } }), "utf8");
+
+  const theme = await loadSessionsTheme({ env: { PI_CODING_AGENT_DIR: agent } });
+  assert.equal(theme.accent, "#2aa198");
+});
+
+test("loadSessionsTheme prefers project package themes before global package themes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
+  const project = join(root, "project");
+  const agent = join(root, "agent");
+  const projectPackage = join(project, ".pi", "git", "github.com", "hasit", "pi-community-themes");
+  const globalPackage = join(agent, "git", "github.com", "hasit", "pi-community-themes");
+  await mkdir(join(projectPackage, "themes"), { recursive: true });
+  await mkdir(join(globalPackage, "themes"), { recursive: true });
+  await writeFile(join(project, ".pi", "settings.json"), JSON.stringify({
+    theme: "shared-theme",
+    packages: ["git:https://github.com/hasit/pi-community-themes"],
+  }), "utf8");
+  await mkdir(agent, { recursive: true });
+  await writeFile(join(agent, "settings.json"), JSON.stringify({
+    packages: ["git:https://github.com/hasit/pi-community-themes"],
+  }), "utf8");
+  await writeFile(join(projectPackage, "package.json"), JSON.stringify({ pi: { themes: ["./themes"] } }), "utf8");
+  await writeFile(join(globalPackage, "package.json"), JSON.stringify({ pi: { themes: ["./themes"] } }), "utf8");
+  await writeFile(join(projectPackage, "themes", "shared-theme.json"), JSON.stringify({ colors: { accent: "#111111" } }), "utf8");
+  await writeFile(join(globalPackage, "themes", "shared-theme.json"), JSON.stringify({ colors: { accent: "#222222" } }), "utf8");
+
+  const theme = await loadSessionsTheme({ cwd: project, env: { PI_CODING_AGENT_DIR: agent } });
+  assert.equal(theme.accent, "#111111");
+});
+
+test("loadSessionsTheme respects settings themes directories", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
+  const agent = join(root, "agent");
+  await mkdir(join(agent, "community-themes"), { recursive: true });
+  await writeFile(join(agent, "settings.json"), JSON.stringify({ theme: "custom", themes: ["./community-themes"] }), "utf8");
+  await writeFile(join(agent, "community-themes", "custom.json"), JSON.stringify({ colors: { accent: "#abcdef" } }), "utf8");
+
+  const theme = await loadSessionsTheme({ env: { PI_CODING_AGENT_DIR: agent } });
+  assert.equal(theme.accent, "#abcdef");
+});
+
+test("loadSessionsTheme supports relative local package paths", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
+  const agent = join(root, "agent");
+  const packageRoot = join(root, "packages", "local-themes");
+  await mkdir(join(packageRoot, "themes"), { recursive: true });
+  await mkdir(agent, { recursive: true });
+  await writeFile(join(agent, "settings.json"), JSON.stringify({
+    theme: "local-theme",
+    packages: ["../packages/local-themes"],
+  }), "utf8");
+  await writeFile(join(packageRoot, "package.json"), JSON.stringify({ pi: { themes: ["./themes"] } }), "utf8");
+  await writeFile(join(packageRoot, "themes", "local-theme.json"), JSON.stringify({ colors: { accent: "#fedcba" } }), "utf8");
+
+  const theme = await loadSessionsTheme({ env: { PI_CODING_AGENT_DIR: agent } });
+  assert.equal(theme.accent, "#fedcba");
+});
+
 test("loadSessionsTheme returns built-in light theme for Pi light", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-agent-hub-theme-"));
   const agent = join(root, "agent");

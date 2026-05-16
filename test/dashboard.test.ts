@@ -1,3 +1,6 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DASHBOARD_SESSION, openDashboard, type DashboardRunner } from "../src/app/dashboard.js";
@@ -47,6 +50,24 @@ test("openDashboard creates and attaches dashboard outside tmux", async () => {
   assert.deepEqual(runner.calls, [{ command: "tmux", args: ["attach-session", "-t", DASHBOARD_SESSION] }]);
   assert.ok(tmux.calls[2]?.args.includes("status-style"));
   assert.ok(tmux.calls[2]?.args.includes("status-left"));
+});
+
+test("openDashboard configures dashboard chrome with Pi theme immediately", async () => {
+  const agent = await mkdtemp(join(tmpdir(), "pi-agent-hub-dashboard-"));
+  const tmux = fakeTmux(true);
+  const runner = fakeRunner();
+  await writeFile(join(agent, "settings.json"), JSON.stringify({ theme: "light" }), "utf8");
+
+  await openDashboard({
+    cwd: "/repo",
+    command: "pi-agent-hub tui",
+    insideTmux: false,
+    env: { PI_CODING_AGENT_DIR: agent },
+  }, tmux, runner);
+
+  const setOption = tmux.calls.find((call) => call.args[0] === "set-option" && call.args.includes("status-style"));
+  assert.ok(setOption);
+  assert.ok(setOption.args.includes("bg=#dce0e8,fg=#5a8080"));
 });
 
 test("openDashboard attaches existing dashboard outside tmux", async () => {

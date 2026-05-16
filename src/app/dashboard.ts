@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { DASHBOARD_SESSION_NAME, STATE_ENV } from "../core/names.js";
 import { configureDashboardStatusBar, newSession, sessionExists, type TmuxExec, realTmuxExec } from "../core/tmux.js";
+import { loadSessionsTheme } from "../tui/theme.js";
 
 export const DASHBOARD_SESSION = DASHBOARD_SESSION_NAME;
 
@@ -41,7 +42,8 @@ export async function openDashboard(
       env: compactEnv(options.env),
     }, exec);
   }
-  await configureDashboardStatusBar({ name: DASHBOARD_SESSION, cwd: options.cwd }, exec);
+  const theme = await loadSessionsTheme({ cwd: options.cwd, env: { ...process.env, ...options.env } });
+  await configureDashboardStatusBar({ name: DASHBOARD_SESSION, cwd: options.cwd, theme }, exec);
 
   if (options.insideTmux) {
     await exec.exec("tmux", ["switch-client", "-t", DASHBOARD_SESSION]);

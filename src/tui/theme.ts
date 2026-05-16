@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { basename, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { agentDir } from "../core/paths.js";
 
 export type ThemeToken = "accent" | "success" | "warning" | "error" | "muted" | "dim" | "text" | "border" | "statusLineBg";
@@ -34,7 +36,11 @@ export const lightTheme: SessionsTheme = {
 
 interface PiSettings {
   theme?: string;
+  themes?: string[];
+  packages?: PackageSetting[];
 }
+
+type PackageSetting = string | { source?: string; themes?: string[] };
 
 interface PiThemeFile {
   name?: string;
@@ -42,15 +48,31 @@ interface PiThemeFile {
   colors?: Record<string, string | number>;
 }
 
+interface ThemeScope {
+  baseDir: string;
+  conventionalThemeDir: string;
+  settings: PiSettings;
+}
+
+type ThemeCandidate = { type: "dir"; path: string } | { type: "file"; path: string };
+
+interface GitParts {
+  host: string;
+  path: string;
+}
+
 export async function loadSessionsTheme(options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): Promise<SessionsTheme> {
   const env = options.env ?? process.env;
-  const name = await readThemeName(options.cwd, env);
+  const scopes = await loadThemeScopes(options.cwd, env);
+  const name = scopes.find((scope) => scope.settings.theme)?.settings.theme;
   if (name === "light") return lightTheme;
   if (!name || name === "dark") return darkTheme;
-  const file = await findThemeFile(name, options.cwd, env);
-  if (!file) return darkTheme;
-  const parsed = JSON.parse(await readFile(file, "utf8")) as PiThemeFile;
-  return themeFromPiTheme(parsed);
+
+  for (const candidate of await themeCandidates(scopes)) {
+    const theme = await readCandidateTheme(candidate, name);
+    if (theme) return themeFromPiTheme(theme);
+  }
+  return darkTheme;
 }
 
 export function styleToken(theme: SessionsTheme, token: ThemeToken, text: string): string {
@@ -89,36 +111,174 @@ export function themeFromPiTheme(theme: PiThemeFile): SessionsTheme {
   };
 }
 
-async function readThemeName(cwd: string | undefined, env: NodeJS.ProcessEnv): Promise<string | undefined> {
-  const paths = [
-    cwd ? join(resolve(cwd), ".pi", "settings.json") : undefined,
-    join(agentDir(env), "settings.json"),
-  ].filter((path): path is string => Boolean(path));
-  for (const path of paths) {
-    try {
-      const settings = JSON.parse(await readFile(path, "utf8")) as PiSettings;
-      if (settings.theme) return settings.theme;
-    } catch (error) {
-      if (!isNotFound(error)) throw error;
+async function loadThemeScopes(cwd: string | undefined, env: NodeJS.ProcessEnv): Promise<ThemeScope[]> {
+  const scopes: ThemeScope[] = [];
+  if (cwd) {
+    const baseDir = join(resolve(cwd), ".pi");
+    const settingsPath = join(baseDir, "settings.json");
+    scopes.push({
+      baseDir,
+      conventionalThemeDir: join(baseDir, "themes"),
+      settings: await readSettings(settingsPath),
+    });
+  }
+
+  const baseDir = agentDir(env);
+  const settingsPath = join(baseDir, "settings.json");
+  scopes.push({
+    baseDir,
+    conventionalThemeDir: join(baseDir, "themes"),
+    settings: await readSettings(settingsPath),
+  });
+  return scopes;
+}
+
+async function readSettings(path: string): Promise<PiSettings> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as PiSettings;
+  } catch (error) {
+    if (isNotFound(error)) return {};
+    throw error;
+  }
+}
+
+async function themeCandidates(scopes: ThemeScope[]): Promise<ThemeCandidate[]> {
+  const candidates: ThemeCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (candidate: ThemeCandidate) => {
+    const key = `${candidate.type}:${candidate.path}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      candidates.push(candidate);
+    }
+  };
+
+  for (const scope of scopes) {
+    for (const path of scope.settings.themes ?? []) {
+      if (!isPlainPath(path)) continue;
+      add(candidateFromPath(resolveSettingsPath(path, scope.baseDir)));
+    }
+    add({ type: "dir", path: scope.conventionalThemeDir });
+  }
+
+  const seenPackages = new Set<string>();
+  for (const scope of scopes) {
+    for (const pkg of scope.settings.packages ?? []) {
+      const source = typeof pkg === "string" ? pkg : pkg.source;
+      if (!source) continue;
+      const packageRoot = packageRootFromSpec(source, scope.baseDir);
+      if (!packageRoot || seenPackages.has(packageRoot)) continue;
+      seenPackages.add(packageRoot);
+      for (const candidate of await packageThemeCandidates(packageRoot, typeof pkg === "string" ? undefined : pkg.themes)) {
+        add(candidate);
+      }
     }
   }
+
+  return candidates;
+}
+
+function resolveSettingsPath(input: string, baseDir: string): string {
+  const trimmed = input.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
+  if (isAbsolute(trimmed)) return trimmed;
+  return resolve(baseDir, trimmed);
+}
+
+function candidateFromPath(path: string): ThemeCandidate {
+  return path.toLowerCase().endsWith(".json") ? { type: "file", path } : { type: "dir", path };
+}
+
+async function packageThemeCandidates(packageRoot: string, packageFilter: string[] | undefined): Promise<ThemeCandidate[]> {
+  if (packageFilter?.length === 0) return [];
+  const entries = packageFilter ?? await packageManifestThemeEntries(packageRoot) ?? ["themes"];
+  return entries
+    .filter((entry) => isPlainPath(entry) && !hasGlob(entry))
+    .map((entry) => candidateFromPath(resolveSettingsPath(entry, packageRoot)));
+}
+
+async function packageManifestThemeEntries(packageRoot: string): Promise<string[] | undefined> {
+  try {
+    const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as { pi?: { themes?: unknown } };
+    return Array.isArray(manifest.pi?.themes) && manifest.pi.themes.every((entry) => typeof entry === "string")
+      ? manifest.pi.themes
+      : undefined;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  }
+}
+
+function packageRootFromSpec(source: string, baseDir: string): string | undefined {
+  const trimmed = source.trim();
+  if (!trimmed || trimmed.startsWith("npm:")) return undefined;
+
+  const git = gitParts(trimmed);
+  if (git) return join(baseDir, "git", git.host, ...git.path.split("/"));
+
+  if (trimmed.startsWith("file://")) return fileURLToPath(trimmed);
+  if (trimmed.startsWith("file:")) return resolveSettingsPath(trimmed.slice("file:".length), baseDir);
+  if (trimmed.startsWith("github:") || trimmed.startsWith("http:") || trimmed.startsWith("https:") || trimmed.startsWith("ssh:")) return undefined;
+  return resolveSettingsPath(trimmed, baseDir);
+}
+
+function gitParts(source: string): GitParts | undefined {
+  const input = source.startsWith("git:") && !source.startsWith("git://") ? source.slice("git:".length).trim() : source;
+  const scpLike = /^git@([^:]+):(.+)$/.exec(input);
+  if (scpLike) return normalizedGitParts(scpLike[1] ?? "", scpLike[2] ?? "");
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+    try {
+      const parsed = new URL(input);
+      return normalizedGitParts(parsed.hostname, parsed.pathname);
+    } catch {
+      return undefined;
+    }
+  }
+
+  const shorthand = /^([^/]+)\/(.+)$/.exec(input);
+  const host = shorthand?.[1] ?? "";
+  if (shorthand && !host.startsWith(".") && (host.includes(".") || host === "localhost")) return normalizedGitParts(host, shorthand[2] ?? "");
   return undefined;
 }
 
-async function findThemeFile(name: string, cwd: string | undefined, env: NodeJS.ProcessEnv): Promise<string | undefined> {
-  const paths = [
-    cwd ? join(resolve(cwd), ".pi", "themes", `${name}.json`) : undefined,
-    join(agentDir(env), "themes", `${name}.json`),
-  ].filter((path): path is string => Boolean(path));
-  for (const path of paths) {
-    try {
-      await readFile(path, "utf8");
-      return path;
-    } catch (error) {
-      if (!isNotFound(error)) throw error;
-    }
-  }
+function normalizedGitParts(host: string, repoPath: string): GitParts | undefined {
+  const cleanPath = repoPath
+    .replace(/^\/+/, "")
+    .replace(/[#?].*$/, "")
+    .replace(/@[^/]*$/, "")
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
+  if (!host || cleanPath.split("/").length < 2) return undefined;
+  return { host, path: cleanPath };
+}
+
+async function readCandidateTheme(candidate: ThemeCandidate, name: string): Promise<PiThemeFile | undefined> {
+  if (candidate.type === "dir") return readThemeJson(join(candidate.path, `${name}.json`));
+
+  const theme = await readThemeJson(candidate.path);
+  if (!theme) return undefined;
+  if (basename(candidate.path) === `${name}.json` || theme.name === name) return theme;
   return undefined;
+}
+
+async function readThemeJson(path: string): Promise<PiThemeFile | undefined> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as PiThemeFile;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  }
+}
+
+function isPlainPath(input: string): boolean {
+  const trimmed = input.trim();
+  return Boolean(trimmed) && !["!", "+", "-"].includes(trimmed[0] ?? "");
+}
+
+function hasGlob(input: string): boolean {
+  return /[*?[\]{}]/.test(input);
 }
 
 function ansi(value: string | number): string {
