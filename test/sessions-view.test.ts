@@ -889,6 +889,27 @@ test("p opens footer send prompt and submits message to selected live session", 
   assert.doesNotMatch(stripAnsi(view.render(100).join("\n")), /sent → api/);
 });
 
+test("themed footer text remains styled when input is truncated", () => {
+  const theme = { ...darkTheme, dim: "#010203", border: "#040506" };
+  const cases = [
+    { key: "r", expected: "rename api:" },
+    { key: "p", expected: "send to api:" },
+  ];
+
+  for (const { key, expected } of cases) {
+    const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {}, {
+      sendMessage: () => {},
+    }, theme);
+    view.handleInput(key);
+    for (const char of "界".repeat(52)) view.handleInput(char);
+
+    const footer = view.render(50).at(-2) ?? "";
+    assert.match(footer, /\u001b\[38;2;1;2;3m/);
+    assert.match(stripAnsi(footer), new RegExp(`${expected}.*…`));
+    assert.ok(stripAnsi(footer).length <= 50, stripAnsi(footer));
+  }
+});
+
 test("footer send prompt validates blank message and escape cancels", () => {
   const sent: string[] = [];
   const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {}, {

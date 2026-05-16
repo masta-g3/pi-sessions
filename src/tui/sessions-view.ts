@@ -1,4 +1,4 @@
-import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { attachPlan, restartConfirmMessage } from "../app/actions.js";
 import type { SessionsController } from "../app/controller.js";
 import { sessionCascadeIds } from "../core/session-tree.js";
@@ -1235,12 +1235,11 @@ function replaceFooter(lines: string[], message: string, theme?: SessionsTheme):
   const inner = Math.max(0, width - 2);
   const border = (text: string) => theme ? styleToken(theme, "border", text) : text;
   const text = truncateVisible(message, inner);
-  copy[footerIndex] = `${border("│")}${text}${" ".repeat(Math.max(0, inner - stripAnsi(text).length))}${border("│")}`;
+  copy[footerIndex] = `${border("│")}${text}${" ".repeat(Math.max(0, inner - visibleWidth(text)))}${border("│")}`;
   return copy;
 }
 
 function truncateVisible(value: string, width: number): string {
-  if (stripAnsi(value).length <= width) return value;
   if (width <= 1) return "";
-  return `${[...stripAnsi(value)].slice(0, width - 1).join("")}…`;
+  return truncateToWidth(value, width, "…");
 }
