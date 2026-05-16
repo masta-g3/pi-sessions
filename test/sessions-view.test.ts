@@ -35,14 +35,19 @@ test("filter mode filters live and escape clears", () => {
 
 test("filter input supports cursor movement", () => {
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api"), session("docs", "docs")] });
-  const view = new SessionsView(controller, () => {});
+  let now = 100;
+  const view = new SessionsView(controller, () => {}, { now: () => now });
 
   view.handleInput("/");
   for (const char of "api") view.handleInput(char);
   view.handleInput("\u001b[D");
   view.handleInput("X");
 
-  assert.match(view.render(100).join("\n"), /filter: apX█i/);
+  const rendered = view.render(100).join("\n");
+  assert.match(rendered, /\u001b\[5m█\u001b\[25m/);
+  assert.match(stripAnsi(rendered), /filter: apX█i/);
+  now = 1_100;
+  assert.match(view.render(100).join("\n"), /\u001b\[5m▌\u001b\[25m/);
   assert.equal(controller.snapshot().filter, "apXi");
 });
 
@@ -85,6 +90,7 @@ test("help overlay opens and closes", () => {
   assert.match(help, /Ctrl\+Q/);
   assert.match(help, /Alt\+R/);
   assert.match(help, /i toggle/);
+  assert.match(help, /p send/);
   assert.match(help, /zero counts are hidden/);
   view.handleInput("\u001b");
   assert.doesNotMatch(view.render(80).join("\n"), /pi agent hub help/);
@@ -223,6 +229,7 @@ test("external rename action selects the target session and opens rename dialog"
   assert.equal(controller.selected()?.id, "api");
   assert.match(rendered, /Rename session/);
   assert.match(rendered, /api/);
+  assert.doesNotMatch(rendered, /rename api:/);
 });
 
 test("external rename action switches back to the session after rename", async () => {
@@ -790,25 +797,31 @@ test("group dialog validates blank group and escape cancels", () => {
   assert.doesNotMatch(view.render(100).join("\n"), /Move to group/);
 });
 
-test("r opens rename dialog for selected session title", () => {
+test("r opens footer rename prompt for selected session title", () => {
   let renamed: { id: string; title: string } | undefined;
+  let now = 100;
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
-  const view = new SessionsView(controller, () => {}, { renameSession: (id, title) => { renamed = { id, title }; } });
+  const view = new SessionsView(controller, () => {}, {
+    renameSession: (id, title) => { renamed = { id, title }; },
+    now: () => now,
+  });
 
   view.handleInput("r");
   const rendered = view.render(100).join("\n");
-  assert.match(rendered, /Rename session/);
-  assert.match(rendered, /▎ title\s+api█/);
-  assert.match(rendered, /session display title/);
+  assert.match(rendered, /\u001b\[5m█\u001b\[25m/);
+  assert.match(stripAnsi(rendered), /rename api: api█/);
+  assert.doesNotMatch(stripAnsi(rendered), /Rename session/);
+  now = 1_100;
+  assert.match(view.render(100).join("\n"), /\u001b\[5m▌\u001b\[25m/);
   for (let i = 0; i < "api".length; i += 1) view.handleInput("\u007f");
   for (const char of "backend") view.handleInput(char);
   view.handleInput("\r");
 
   assert.deepEqual(renamed, { id: "api", title: "backend" });
-  assert.doesNotMatch(view.render(100).join("\n"), /Rename session/);
+  assert.doesNotMatch(view.render(100).join("\n"), /rename api:/);
 });
 
-test("rename dialog supports cursor movement and mid-line editing", () => {
+test("footer rename prompt supports cursor movement and mid-line editing", () => {
   let renamed: { id: string; title: string } | undefined;
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
   const view = new SessionsView(controller, () => {}, { renameSession: (id, title) => { renamed = { id, title }; } });
@@ -816,13 +829,13 @@ test("rename dialog supports cursor movement and mid-line editing", () => {
   view.handleInput("r");
   view.handleInput("\u001b[D");
   view.handleInput("X");
-  assert.match(view.render(100).join("\n"), /apX█i/);
+  assert.match(stripAnsi(view.render(100).join("\n")), /apX[█▌]i/);
   view.handleInput("\r");
 
   assert.deepEqual(renamed, { id: "api", title: "apXi" });
 });
 
-test("rename dialog supports word movement and word backspace", () => {
+test("footer rename prompt supports word movement and word backspace", () => {
   let renamed: { id: string; title: string } | undefined;
   const controller = new SessionsController({ version: 1, sessions: [session("api", "alpha beta gamma")] });
   const view = new SessionsView(controller, () => {}, { renameSession: (id, title) => { renamed = { id, title }; } });
@@ -835,7 +848,7 @@ test("rename dialog supports word movement and word backspace", () => {
   assert.deepEqual(renamed, { id: "api", title: "alpha gamma" });
 });
 
-test("rename dialog validates blank title", () => {
+test("footer rename prompt validates blank title", () => {
   let renamed: { id: string; title: string } | undefined;
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
   const view = new SessionsView(controller, () => {}, { renameSession: (id, title) => { renamed = { id, title }; } });
@@ -848,13 +861,107 @@ test("rename dialog validates blank title", () => {
   assert.match(view.render(100).join("\n"), /title is required/);
 });
 
+test("p opens footer send prompt and submits message to selected live session", async () => {
+  const sent: Array<{ tmuxSession: string; message: string }> = [];
+  let now = 100;
+  const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {}, {
+    sendMessage: async (tmuxSession, message) => { sent.push({ tmuxSession, message }); },
+    now: () => now,
+  });
+
+  view.handleInput("p");
+  const rawPrompt = view.render(100).join("\n");
+  assert.match(rawPrompt, /\u001b\[5m█\u001b\[25m/);
+  const prompt = stripAnsi(rawPrompt);
+  assert.match(prompt, /pi agent hub/);
+  assert.match(prompt, /▶ . api/);
+  assert.match(prompt, /send to api: █/);
+  assert.doesNotMatch(prompt, /Send to api/);
+  now = 1_100;
+  assert.match(view.render(100).join("\n"), /\u001b\[5m▌\u001b\[25m/);
+  for (const char of "fix it") view.handleInput(char);
+  view.handleInput("\r");
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(sent, [{ tmuxSession: "pi-agent-hub-api", message: "fix it" }]);
+  assert.match(stripAnsi(view.render(100).join("\n")), /sent → api/);
+  now = 3_000;
+  assert.doesNotMatch(stripAnsi(view.render(100).join("\n")), /sent → api/);
+});
+
+test("footer send prompt validates blank message and escape cancels", () => {
+  const sent: string[] = [];
+  const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {}, {
+    sendMessage: (_tmuxSession, message) => { sent.push(message); },
+  });
+
+  view.handleInput("p");
+  view.handleInput("\r");
+  assert.match(stripAnsi(view.render(100).join("\n")), /message is required/);
+  view.handleInput("\u001b");
+
+  assert.deepEqual(sent, []);
+  assert.doesNotMatch(stripAnsi(view.render(100).join("\n")), /send to api/);
+});
+
+test("send shortcut blocks subagent stopped and error rows", () => {
+  const blockedSessions: ManagedSession[] = [
+    { ...session("child", "child"), kind: "subagent", parentId: "missing", agentName: "scout" },
+    { ...session("stopped", "stopped"), status: "stopped" },
+    { ...session("error", "error"), status: "error" },
+  ];
+  const messages: RegExp[] = [/subagent rows cannot receive input/, /session is not live/, /session is not live/];
+
+  for (let i = 0; i < blockedSessions.length; i += 1) {
+    let called = false;
+    const view = new SessionsView(new SessionsController({ version: 1, sessions: [blockedSessions[i]!] }), () => {}, {
+      sendMessage: () => { called = true; },
+    });
+    view.handleInput("p");
+    assert.equal(called, false);
+    assert.match(stripAnsi(view.render(100).join("\n")), messages[i]!);
+  }
+});
+
+test("send shortcut allows all live statuses", () => {
+  for (const status of ["starting", "running", "waiting", "idle"] as const) {
+    const view = new SessionsView(new SessionsController({ version: 1, sessions: [{ ...session(status, status), status }] }), () => {}, {
+      sendMessage: () => {},
+    });
+    view.handleInput("p");
+    assert.match(stripAnsi(view.render(100).join("\n")), new RegExp(`send to ${status}:`));
+  }
+});
+
+test("send shortcut reports unavailable without a transport action", () => {
+  const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {});
+
+  view.handleInput("p");
+
+  assert.match(stripAnsi(view.render(100).join("\n")), /send unavailable/);
+  assert.doesNotMatch(stripAnsi(view.render(100).join("\n")), /send to api/);
+});
+
+test("send action errors show in footer", async () => {
+  const view = new SessionsView(new SessionsController({ version: 1, sessions: [session("api", "api")] }), () => {}, {
+    sendMessage: async () => { throw new Error("send failed"); },
+  });
+
+  view.handleInput("p");
+  view.handleInput("h");
+  view.handleInput("\r");
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.match(stripAnsi(view.render(100).join("\n")), /send failed/);
+});
+
 test("e remains a rename alias", () => {
   const controller = new SessionsController({ version: 1, sessions: [session("api", "api")] });
   const view = new SessionsView(controller, () => {});
 
   view.handleInput("e");
 
-  assert.match(view.render(100).join("\n"), /Rename session/);
+  assert.match(stripAnsi(view.render(100).join("\n")), /rename api: api/);
 });
 
 test("group rename dialog renames selected session current group", () => {

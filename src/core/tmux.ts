@@ -66,6 +66,13 @@ export async function capturePane(name: string, lines = 160, exec: TmuxExec = re
   return result.stdout;
 }
 
+export async function sendTextToSession(name: string, text: string, exec: TmuxExec = realTmuxExec): Promise<void> {
+  const buffer = `pi-agent-hub-send-${process.pid}`;
+  await exec.exec("tmux", ["set-buffer", "-b", buffer, "--", text]);
+  await exec.exec("tmux", ["paste-buffer", "-d", "-b", buffer, "-t", name]);
+  await exec.exec("tmux", ["send-keys", "-t", name, "Enter"]);
+}
+
 export async function configureManagedSessionStatusBar(options: {
   name: string;
   title: string;

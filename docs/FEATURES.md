@@ -22,7 +22,8 @@ Ctrl+Q returns to the dashboard
 | --- | --- | --- |
 | Long-running sessions | `n` creates, `Enter` opens | Sessions keep running in tmux instead of disappearing with a terminal. |
 | Dashboard return | `Ctrl+Q` inside a managed session | Jump back to the hub without stopping the agent. |
-| In-session rename | `Alt+R` inside a managed session | Rename the current session from context, then return to it. |
+| In-session rename | `Alt+R` inside a managed session | Open the dashboard rename dialog for the current session, then return to it after saving. |
+| Direct send | `p` in the dashboard | Paste and submit a one-line message into the selected live session without opening it. |
 | Stable grouping/order | `g`, `G`, `K`, `J` | Keep sessions organized without status/title resorting. |
 | Multi-repo sessions | `Alt+A` in the new-session form | Work across repos through a symlink workspace without creating worktrees. |
 | Project Skills | `s` picker | Attach Pi skills to the selected session's primary repo. |

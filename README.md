@@ -17,7 +17,7 @@ Most agent managers try to become the runtime. `pi-agent-hub` stays small: Pi ru
 | Pi-native | Uses Pi sessions, extensions, skills, MCP, and project state directly. |
 | tmux-native | Sessions keep running as normal tmux sessions; you can attach, switch, or recover manually. |
 | One stable dashboard | `pi-hub` always brings you back to the same control center. |
-| Return shortcuts | `Ctrl+Q` jumps from a managed session back to the dashboard; `Alt+R` returns into rename. |
+| Return shortcuts | `Ctrl+Q` jumps from a managed session back to the dashboard; `Alt+R` opens the dashboard rename dialog, then returns after saving. |
 | Project-scoped skills/MCP | Pick skills and MCP servers for the selected session's primary repo. |
 | Multi-repo without worktrees | Extra repos are symlinked into a runtime workspace; source repos are not moved or owned. |
 | Small surface area | No cloud service, no custom agent runtime, no hidden repo scanning. |
@@ -39,10 +39,11 @@ Inside the dashboard:
 | `n` | Create a new Pi session |
 | `Enter` | Open or switch to the selected session |
 | `/` | Filter sessions |
+| `p` | Send a one-line message to the selected live session without opening it |
 | `?` | Show help and status legend |
 | `i` | Toggle compact/full selected-session info |
 | `Ctrl+Q` | Return from a managed session to the dashboard |
-| `r` | Rename the selected session |
+| `r` | Rename the selected session in the dashboard footer |
 | `R` | Restart the selected session |
 | `g` | Move the selected session to a group |
 | `G` | Rename the selected session's group |
@@ -124,7 +125,7 @@ The dashboard runs `pi-hub tui` inside tmux so it does not recursively create da
 
 The dashboard top line summarizes visible sessions and nonzero status counts in fixed order: `●` running/starting, `◐` waiting, `○` idle, `×` error, `-` stopped. Press `?` for the full help/legend and `i` to toggle compact vs full selected-session metadata.
 
-When the dashboard is running inside tmux, `Enter` switches the current tmux client to the selected managed session and briefly shows the equivalent `tmux switch-client -t <session>` command. Opening a `waiting` session marks it read before attaching, so it can show `idle` after you return; `a` remains the manual mark-read shortcut.
+When the dashboard is running inside tmux, `Enter` switches the current tmux client to the selected managed session and briefly shows the equivalent `tmux switch-client -t <session>` command. Opening a `waiting` session marks it read before attaching, so it can show `idle` after you return; `a` remains the manual mark-read shortcut. Press `p` from the dashboard to type a one-line footer prompt that is pasted into the selected live managed session and submitted without switching away from the dashboard.
 
 Return shortcuts from a managed `pi-agent-hub-*` session:
 
@@ -167,7 +168,8 @@ Groups are simple labels on sessions.
 | `G` | Rename the selected session's group everywhere |
 | `K` / `J` | Move the selected session up/down within its group |
 | `Shift+Up` / `Shift+Down` | Same as `K` / `J` |
-| `r` | Rename the selected session |
+| `p` | Send a one-line message to the selected live session without opening it |
+| `r` | Rename the selected session in the dashboard footer |
 | `R` | Restart the selected session |
 
 Reordering is disabled while a filter is active.

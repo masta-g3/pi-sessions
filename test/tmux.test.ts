@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { configureDashboardStatusBar, configureManagedSessionStatusBar, currentTmuxClient, currentTmuxSession, inspectSwitchReturnBinding, restoreSwitchReturnBinding, switchClientWithReturn, type TmuxExec } from "../src/core/tmux.js";
+import { configureDashboardStatusBar, configureManagedSessionStatusBar, currentTmuxClient, currentTmuxSession, inspectSwitchReturnBinding, restoreSwitchReturnBinding, sendTextToSession, switchClientWithReturn, type TmuxExec } from "../src/core/tmux.js";
 import type { CommandResult } from "../src/core/types.js";
 
 interface Call {
@@ -107,6 +107,27 @@ test("currentTmuxClient reads and trims the current tmux client", async () => {
 
   await assert.equal(await currentTmuxClient(exec), "/dev/ttys011");
   assert.deepEqual(exec.calls, [{ command: "tmux", args: ["display-message", "-p", "#{client_name}"] }]);
+});
+
+test("sendTextToSession pastes text into target and submits", async () => {
+  const exec = fakeTmux(() => ({ stdout: "", stderr: "" }));
+
+  await sendTextToSession("pi-agent-hub-api", "-fix quotes 'and' unicode ✓", exec);
+
+  assert.deepEqual(exec.calls, [
+    { command: "tmux", args: ["set-buffer", "-b", `pi-agent-hub-send-${process.pid}`, "--", "-fix quotes 'and' unicode ✓"] },
+    { command: "tmux", args: ["paste-buffer", "-d", "-b", `pi-agent-hub-send-${process.pid}`, "-t", "pi-agent-hub-api"] },
+    { command: "tmux", args: ["send-keys", "-t", "pi-agent-hub-api", "Enter"] },
+  ]);
+});
+
+test("sendTextToSession surfaces tmux errors", async () => {
+  const exec = fakeTmux((call) => {
+    if (call.args[0] === "paste-buffer") throw new Error("paste failed");
+    return { stdout: "", stderr: "" };
+  });
+
+  await assert.rejects(() => sendTextToSession("pi-agent-hub-api", "hello", exec), /paste failed/);
 });
 
 test("switchClientWithReturn installs return binding then switches client", async () => {

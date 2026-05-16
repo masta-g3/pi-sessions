@@ -75,6 +75,7 @@ export interface SessionsViewActions {
   applySkills?: (items: PickerItem[]) => void | Promise<void>;
   mcpServers?: () => PickerItem[] | Promise<PickerItem[]>;
   applyMcpServers?: (items: PickerItem[]) => void | Promise<void>;
+  sendMessage?: (tmuxSession: string, message: string) => unknown;
   copy?: (text: string) => void;
   skillCount?: (cwd: string) => number | undefined;
   now?: () => number;
@@ -82,21 +83,26 @@ export interface SessionsViewActions {
 }
 
 export class SessionsView implements Component {
-  private mode: "normal" | "filter" | "help" | "new" | "repoPicker" | "fork" | "group" | "rename" | "groupRename" | "skills" | "mcp" | "delete" = "normal";
+  private mode: "normal" | "filter" | "help" | "new" | "repoPicker" | "fork" | "group" | "rename" | "renameDialog" | "groupRename" | "send" | "skills" | "mcp" | "delete" = "normal";
   private filterDraft: TextInputState = createTextInput();
   private newForm: NewFormState | undefined;
   private repoPicker: RepoPickerState | undefined;
   private repoPickerTarget: RepoFieldKey | undefined;
   private forkForm: FormState<"group" | "title"> | undefined;
   private moveGroupForm: FormState<"group"> | undefined;
+  private renameDraft: TextInputState = createTextInput();
+  private renameError: string | undefined;
   private renameSessionForm: FormState<"title"> | undefined;
   private renameGroupForm: FormState<"to"> | undefined;
+  private sendDraft: TextInputState = createTextInput();
+  private sendError: string | undefined;
   private picker: PickerState | undefined;
   private message: string | undefined;
   private flash: { text: string; expiresAt: number } | undefined;
   private detailsExpanded = false;
   private pendingRestart: { sessionId: string; expiresAt: number } | undefined;
   private deleteTargetId: string | undefined;
+  private sendTargetId: string | undefined;
   private renameGroupFrom: string | undefined;
   private returnAfterRenameTmuxSession: string | undefined;
   private busy = false;
@@ -135,12 +141,22 @@ export class SessionsView implements Component {
     }
 
     if (this.mode === "rename") {
+      this.handleRenameInput(data);
+      return;
+    }
+
+    if (this.mode === "renameDialog") {
       this.handleFormInput(data, this.renameSessionForm, (state) => { this.renameSessionForm = state; }, () => this.submitRenameSessionDialog());
       return;
     }
 
     if (this.mode === "groupRename") {
       this.handleFormInput(data, this.renameGroupForm, (state) => { this.renameGroupForm = state; }, () => this.submitRenameGroupDialog());
+      return;
+    }
+
+    if (this.mode === "send") {
+      this.handleSendInput(data);
       return;
     }
 
@@ -199,6 +215,7 @@ export class SessionsView implements Component {
     else if (data === "g") this.startGroupDialog();
     else if (data === "e" || data === "r") this.startRenameSessionDialog();
     else if (data === "G") this.startRenameGroupDialog();
+    else if (data === "p") this.startSendDialog();
     else if (data === "R") this.restartSelected();
     else if (data === "d") this.startDeleteDialog();
     else if (data === "s") this.startPicker("skills");
@@ -230,7 +247,7 @@ export class SessionsView implements Component {
     if (this.mode === "new" && this.newForm) return this.renderNewForm(width);
     if (this.mode === "fork") return this.renderSessionDialog(width);
     if (this.mode === "group") return this.renderGroupDialog(width);
-    if (this.mode === "rename") return this.renderRenameSessionDialog(width);
+    if (this.mode === "renameDialog") return this.renderRenameSessionDialog(width);
     if (this.mode === "groupRename") return this.renderRenameGroupDialog(width);
     if (this.mode === "delete") return this.renderDeleteDialog(width);
     if (this.pendingRestart && this.message?.startsWith("press R again")) return this.renderRestartDialog(width);
@@ -247,7 +264,15 @@ export class SessionsView implements Component {
       height: this.actions.terminalRows?.() ?? process.stdout.rows,
       selectedSkillCount: selected ? this.actions.skillCount?.(selected.cwd) : undefined,
     }), this.theme);
-    const withFooter = this.mode === "filter" ? replaceFooter(lines, filterFooter(this.filterDraft, this.theme), this.theme) : lines;
+    const now = this.actions.now?.() ?? Date.now();
+    const footer = this.mode === "filter"
+      ? filterFooter(this.filterDraft, now, this.theme)
+      : this.mode === "rename"
+        ? renameFooter(this.renameDraft, this.renameTargetTitle(), this.renameError, now, this.theme)
+        : this.mode === "send"
+          ? sendFooter(this.sendDraft, this.sendTargetTitle(), this.sendError, now, this.theme)
+          : undefined;
+    const withFooter = footer ? replaceFooter(lines, footer, this.theme) : lines;
     if (this.message) return replaceFooter(withFooter, this.message, this.theme);
     return this.flash ? replaceFooter(withFooter, this.flash.text, this.theme) : withFooter;
   }
@@ -263,7 +288,7 @@ export class SessionsView implements Component {
     this.controller.setFilter(undefined);
     if (!this.controller.selectSession(target.id)) return false;
     this.startRenameSessionDialog(tmuxSession);
-    return this.mode === "rename";
+    return this.mode === "renameDialog";
   }
 
   private startFilter() {
@@ -328,10 +353,16 @@ export class SessionsView implements Component {
     this.clearPendingRestart();
     this.clearFlash();
     this.returnAfterRenameTmuxSession = returnAfterRenameTmuxSession;
-    this.mode = "rename";
-    this.renameSessionForm = createForm<"title">([
-      { key: "title", label: "title", value: selected.title, hint: "session display title" },
-    ]);
+    if (returnAfterRenameTmuxSession) {
+      this.mode = "renameDialog";
+      this.renameSessionForm = createForm<"title">([
+        { key: "title", label: "title", value: selected.title, hint: "session display title" },
+      ]);
+    } else {
+      this.mode = "rename";
+      this.renameDraft = createTextInput(selected.title);
+      this.renameError = undefined;
+    }
     this.message = undefined;
   }
 
@@ -349,6 +380,30 @@ export class SessionsView implements Component {
     this.renameGroupForm = createForm<"to">([
       { key: "to", label: "to", value: selected.group, hint: `renames all sessions currently in ${selected.group}` },
     ]);
+    this.message = undefined;
+  }
+
+  private startSendDialog() {
+    const selected = this.controller.selected();
+    if (!selected) return;
+    if (selected.kind === "subagent") {
+      this.message = "subagent rows cannot receive input";
+      return;
+    }
+    if (selected.status === "stopped" || selected.status === "error") {
+      this.message = "session is not live; press R to restart";
+      return;
+    }
+    if (!this.actions.sendMessage) {
+      this.message = "send unavailable";
+      return;
+    }
+    this.clearPendingRestart();
+    this.clearFlash();
+    this.mode = "send";
+    this.sendTargetId = selected.id;
+    this.sendDraft = createTextInput();
+    this.sendError = undefined;
     this.message = undefined;
   }
 
@@ -737,20 +792,31 @@ export class SessionsView implements Component {
 
   private submitRenameSessionDialog() {
     const selected = this.controller.selected();
-    if (!selected || !this.renameSessionForm) return;
-    const result = validateRequired(this.renameSessionForm);
-    this.renameSessionForm = result.state;
-    if (!result.ok) return;
-    const title = result.state.fields.title.value;
+    if (!selected) {
+      this.clearRenamePrompt();
+      return;
+    }
+    let title: string;
+    if (this.mode === "renameDialog") {
+      if (!this.renameSessionForm) return;
+      const result = validateRequired(this.renameSessionForm);
+      this.renameSessionForm = result.state;
+      if (!result.ok) return;
+      title = result.state.fields.title.value;
+    } else {
+      title = this.renameDraft.value.trim();
+      if (!title) {
+        this.renameError = "title is required";
+        return;
+      }
+    }
     const returnTmuxSession = this.returnAfterRenameTmuxSession;
-    this.returnAfterRenameTmuxSession = undefined;
     this.runAction(
       () => this.actions.renameSession ? this.actions.renameSession(selected.id, title) : this.controller.renameSession(selected.id, title),
       "renaming session...",
       () => { if (returnTmuxSession) this.attachSession(selected); },
     );
-    this.mode = "normal";
-    this.renameSessionForm = undefined;
+    this.clearRenamePrompt();
   }
 
   private submitRenameGroupDialog() {
@@ -768,6 +834,25 @@ export class SessionsView implements Component {
     this.mode = "normal";
     this.renameGroupFrom = undefined;
     this.renameGroupForm = undefined;
+  }
+
+  private submitSendDialog() {
+    const target = this.controller.snapshot().registry.sessions.find((session) => session.id === this.sendTargetId);
+    if (!target) {
+      this.clearSendPrompt();
+      return;
+    }
+    const message = this.sendDraft.value.trim();
+    if (!message) {
+      this.sendError = "message is required";
+      return;
+    }
+    this.runAction(
+      () => this.actions.sendMessage?.(target.tmuxSession, message),
+      "sending message...",
+      () => { this.flashMessage(`sent → ${target.title}`); },
+    );
+    this.clearSendPrompt();
   }
 
   private runAction(action: () => unknown, pendingMessage: string, onSuccess?: () => void): void {
@@ -908,6 +993,65 @@ export class SessionsView implements Component {
       this.controller.setFilter(this.filterDraft.value);
     }
   }
+
+  private handleRenameInput(data: string) {
+    if (matchesKey(data, Key.escape)) {
+      this.clearRenamePrompt();
+      this.message = undefined;
+      return;
+    }
+    if (matchesKey(data, Key.enter) || matchesKey(data, Key.return) || data === "\r") {
+      this.submitRenameSessionDialog();
+      return;
+    }
+    const edited = editTextInput(data, this.renameDraft);
+    if (edited) {
+      this.renameDraft = edited;
+      this.renameError = undefined;
+      this.message = undefined;
+    }
+  }
+
+  private clearRenamePrompt() {
+    this.mode = "normal";
+    this.renameDraft = createTextInput();
+    this.renameError = undefined;
+    this.renameSessionForm = undefined;
+    this.returnAfterRenameTmuxSession = undefined;
+  }
+
+  private renameTargetTitle(): string {
+    return this.controller.selected()?.title ?? "session";
+  }
+
+  private handleSendInput(data: string) {
+    if (matchesKey(data, Key.escape)) {
+      this.clearSendPrompt();
+      this.message = undefined;
+      return;
+    }
+    if (matchesKey(data, Key.enter) || matchesKey(data, Key.return) || data === "\r") {
+      this.submitSendDialog();
+      return;
+    }
+    const edited = editTextInput(data, this.sendDraft);
+    if (edited) {
+      this.sendDraft = edited;
+      this.sendError = undefined;
+      this.message = undefined;
+    }
+  }
+
+  private clearSendPrompt() {
+    this.mode = "normal";
+    this.sendTargetId = undefined;
+    this.sendDraft = createTextInput();
+    this.sendError = undefined;
+  }
+
+  private sendTargetTitle(): string {
+    return this.controller.snapshot().registry.sessions.find((session) => session.id === this.sendTargetId)?.title ?? "session";
+  }
 }
 
 function editPickerSearch(data: string, picker: PickerState): PickerState | undefined {
@@ -977,15 +1121,34 @@ function wordDelete(data: string): boolean {
   return matchesKey(data, Key.ctrl("delete")) || matchesKey(data, Key.alt("delete")) || matchesKey(data, Key.alt("d"));
 }
 
-function filterFooter(input: TextInputState, theme?: SessionsTheme): string {
-  const text = `filter: ${renderInlineInput(input)}  • ←→ edit • esc clear • enter done`;
+function filterFooter(input: TextInputState, now: number, theme?: SessionsTheme): string {
+  const text = `filter: ${renderInlineInput(input, footerCursor(now))}  • ←→ edit • esc clear • enter done`;
   return theme ? styleToken(theme, "dim", text) : text;
 }
 
-function renderInlineInput(input: TextInputState): string {
+function renameFooter(input: TextInputState, target: string, error: string | undefined, now: number, theme?: SessionsTheme): string {
+  const text = error
+    ? `rename ${target}: ${renderInlineInput(input, footerCursor(now))}  • ${error}`
+    : `rename ${target}: ${renderInlineInput(input, footerCursor(now))}  • ←→ edit • esc cancel • enter rename`;
+  return theme ? styleToken(theme, error ? "error" : "dim", text) : text;
+}
+
+function sendFooter(input: TextInputState, target: string, error: string | undefined, now: number, theme?: SessionsTheme): string {
+  const text = error
+    ? `send to ${target}: ${renderInlineInput(input, footerCursor(now))}  • ${error}`
+    : `send to ${target}: ${renderInlineInput(input, footerCursor(now))}  • ←→ edit • esc cancel • enter send`;
+  return theme ? styleToken(theme, error ? "error" : "dim", text) : text;
+}
+
+function footerCursor(now: number): string {
+  const marker = Math.floor(now / 1_000) % 2 === 0 ? "█" : "▌";
+  return `\u001b[5m${marker}\u001b[25m`;
+}
+
+function renderInlineInput(input: TextInputState, marker = "█"): string {
   const chars = [...input.value];
   const cursor = Math.max(0, Math.min(input.cursor, chars.length));
-  return `${chars.slice(0, cursor).join("")}█${chars.slice(cursor).join("")}`;
+  return `${chars.slice(0, cursor).join("")}${marker}${chars.slice(cursor).join("")}`;
 }
 
 function confirmLine(token: "warning" | "error", text: string, theme?: SessionsTheme): string {
@@ -1035,7 +1198,7 @@ function renderHelp(width: number): string[] {
     "  K/J reorder in group      q quit                Esc cancel/clear",
     "",
     "Sessions",
-    "  n new     r rename     f fork     g move group     G rename group",
+    "  n new     p send     r rename     f fork     g move group     G rename group",
     "  R restart (press R again)     d delete     a mark read",
     "",
     "Project state",

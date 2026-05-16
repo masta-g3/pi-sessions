@@ -10,7 +10,7 @@ import { listSkillPool } from "../skills/catalog.js";
 import { loadMcpCatalog, loadProjectMcpState, setProjectMcpServers } from "../mcp/config.js";
 import { projectStateCwd } from "../core/multi-repo.js";
 import { loadRepoHistory, mergeRepoCwds, rankedRepoCwds } from "../core/repo-history.js";
-import { configureDashboardStatusBar, configureManagedSessionStatusBar, restoreSwitchReturnBinding, switchClientWithReturn } from "../core/tmux.js";
+import { configureDashboardStatusBar, configureManagedSessionStatusBar, restoreSwitchReturnBinding, sendTextToSession, switchClientWithReturn } from "../core/tmux.js";
 import { DASHBOARD_SESSION, dashboardEnv } from "./dashboard.js";
 import { consumeDashboardAction } from "./dashboard-action.js";
 import { deleteManagedSession, deleteManagedSubagentSessions } from "./delete-session.js";
@@ -178,6 +178,9 @@ export async function runTui(): Promise<void> {
     },
     reorderSelected(delta) {
       return mutateRegistry(() => controller.reorderSelected(delta));
+    },
+    sendMessage(tmuxSession, message) {
+      return sendTextToSession(tmuxSession, message);
     },
     acknowledge() {
       return mutateRegistry(() => controller.acknowledgeSelected());
