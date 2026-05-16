@@ -1,6 +1,6 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { RenderModel, RenderSession, StatusCounts } from "./render-model.js";
-import { darkTheme, stripAnsi, styleToken, type SessionsTheme } from "./theme.js";
+import { darkTheme, stripAnsi, stripAnsiExceptItalics, styleToken, type SessionsTheme } from "./theme.js";
 
 export function renderSessions(model: RenderModel, theme?: SessionsTheme): string[] {
   const styles = theme ? createStyles(theme) : plainStyles();
@@ -114,7 +114,7 @@ function renderDetails(session: RenderSession | undefined, width: number, previe
   const lines = expanded ? expandedDetails(session, width, styles) : compactDetails(session, width, styles);
   lines.push("", styles.border("── preview ────────────────────────────────"));
   const previewBudget = Math.max(4, (targetRows ?? lines.length + 12) - lines.length);
-  const previewLines = preview.trimEnd() ? preview.trimEnd().split("\n").slice(-previewBudget) : ["preview empty"];
+  const previewLines = preview.trimEnd() ? preview.trimEnd().split("\n").slice(-previewBudget).map(stripAnsiExceptItalics) : ["preview empty"];
   lines.push(...previewLines);
   return lines.map((line) => truncate(line, width));
 }

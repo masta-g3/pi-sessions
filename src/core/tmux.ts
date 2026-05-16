@@ -61,8 +61,17 @@ export async function killSession(name: string, exec: TmuxExec = realTmuxExec): 
   await exec.exec("tmux", ["kill-session", "-t", name]);
 }
 
-export async function capturePane(name: string, lines = 160, exec: TmuxExec = realTmuxExec): Promise<string> {
-  const result = await exec.exec("tmux", ["capture-pane", "-p", "-t", name, "-S", `-${lines}`]);
+export interface CapturePaneOptions {
+  preserveStyles?: boolean;
+}
+
+export async function capturePane(name: string, lines = 160, optionsOrExec: CapturePaneOptions | TmuxExec = {}, exec: TmuxExec = realTmuxExec): Promise<string> {
+  const options = "exec" in optionsOrExec ? {} : optionsOrExec;
+  const runner = "exec" in optionsOrExec ? optionsOrExec : exec;
+  const args = ["capture-pane", "-p"];
+  if (options.preserveStyles) args.push("-e");
+  args.push("-t", name, "-S", `-${lines}`);
+  const result = await runner.exec("tmux", args);
   return result.stdout;
 }
 

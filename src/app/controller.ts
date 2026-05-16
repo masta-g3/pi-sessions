@@ -47,7 +47,7 @@ export class SessionsController {
       this.preview = "";
       return;
     }
-    this.preview = await capturePane(selected.tmuxSession, lines);
+    this.preview = await capturePane(selected.tmuxSession, lines, { preserveStyles: true });
   }
 
   snapshot(): SessionsSnapshot {

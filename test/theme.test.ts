@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildRenderModel } from "../src/tui/render-model.js";
 import { renderSessions, renderForm } from "../src/tui/layout.js";
-import { darkTheme, lightTheme, loadSessionsTheme, stripAnsi, styleToken, themeFromPiTheme } from "../src/tui/theme.js";
+import { darkTheme, lightTheme, loadSessionsTheme, stripAnsi, stripAnsiExceptItalics, styleToken, themeFromPiTheme } from "../src/tui/theme.js";
 import type { ManagedSession } from "../src/core/types.js";
 
 function session(): ManagedSession {
@@ -157,6 +157,13 @@ test("styleToken uses ANSI without changing visible text", () => {
   const styled = styleToken({ ...darkTheme, accent: "#010203" }, "accent", "api");
   assert.match(styled, /\u001b\[38;2;1;2;3mapi\u001b\[0m/);
   assert.equal(stripAnsi(styled), "api");
+});
+
+test("stripAnsiExceptItalics preserves only italic styling", () => {
+  const styled = "\u001b[1;38;5;244mBold\u001b[0m \u001b[3;38;2;1;2;3mItalic\u001b[23;39m \u001b[4;48;5;12mUnderBg\u001b[0m";
+
+  assert.equal(stripAnsiExceptItalics(styled), "Bold\u001b[0m \u001b[3mItalic\u001b[23m UnderBg\u001b[0m");
+  assert.equal(stripAnsi(stripAnsiExceptItalics(styled)), "Bold Italic UnderBg");
 });
 
 test("renderSessions applies theme tokens without changing visible width", () => {

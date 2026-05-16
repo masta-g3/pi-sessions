@@ -85,6 +85,17 @@ test("wide preview glyphs do not exceed terminal width", () => {
   for (const line of renderSessions(model)) assert.ok(visibleWidth(line) <= 80, line);
 });
 
+test("styled preview lines keep italics only", () => {
+  const preview = "\u001b[1;38;5;244mHeading\u001b[0m\n\u001b[3;38;2;1;2;3m- thought\u001b[0m\n\u001b[4munderlined\u001b[0m";
+  const rendered = renderSessions(buildRenderModel({ sessions: [session("a", "default", "idle", "api")], selectedId: "a", width: 120, preview })).join("\n");
+
+  assert.doesNotMatch(rendered, /\u001b\[1mHeading/);
+  assert.match(rendered, /\u001b\[3m- thought\u001b\[0m/);
+  assert.doesNotMatch(rendered, /\u001b\[4munderlined/);
+  assert.doesNotMatch(rendered, /38;[25];/);
+  for (const line of rendered.split("\n")) assert.ok(visibleWidth(line) <= 120, line);
+});
+
 test("top summary shows visible totals status counts and filter", () => {
   const model = buildRenderModel({
     sessions: [session("api", "default", "running"), session("docs", "default", "waiting"), session("web", "default", "error")],

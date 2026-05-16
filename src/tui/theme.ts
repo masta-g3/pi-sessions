@@ -85,6 +85,31 @@ export function stripAnsi(text: string): string {
   return text.replace(/\u001b\[[0-9;]*m/g, "");
 }
 
+export function stripAnsiExceptItalics(text: string): string {
+  return text.replace(/\u001b\[([0-9;:]*)m/g, (_match, params: string) => {
+    const kept = italicSgrParams(params);
+    return kept.length ? `\u001b[${kept.join(";")}m` : "";
+  });
+}
+
+function italicSgrParams(params: string): string[] {
+  const parts = params === "" ? ["0"] : params.split(";");
+  const kept: string[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index] ?? "";
+    if (part.includes(":")) continue;
+    const code = part === "" ? 0 : Number(part);
+    if (!Number.isInteger(code)) continue;
+    if (code === 38 || code === 48 || code === 58) {
+      const mode = Number(parts[index + 1]);
+      index += mode === 2 ? 4 : mode === 5 ? 2 : 1;
+      continue;
+    }
+    if (code === 0 || code === 3 || code === 23) kept.push(String(code));
+  }
+  return kept;
+}
+
 export function themeFromPiTheme(theme: PiThemeFile): SessionsTheme {
   const vars = theme.vars ?? {};
   const colors = theme.colors ?? {};
