@@ -459,6 +459,7 @@ export class SessionsView implements Component {
           this.message = "marking read...";
           void result.then(() => {
             this.busy = false;
+            if (this.message === "marking read...") this.message = undefined;
             this.attachSession(selected);
           }).catch((error: unknown) => {
             this.busy = false;

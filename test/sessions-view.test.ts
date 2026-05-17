@@ -211,6 +211,9 @@ test("enter on waiting session marks read before switching inside tmux", async (
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.deepEqual(events, ["acknowledge", "switch:pi-agent-hub-api"]);
+    const rendered = stripAnsi(view.render(100).join("\n"));
+    assert.doesNotMatch(rendered, /marking read/);
+    assert.match(rendered, /tmux switch-client -t pi-agent-hub-api/);
   } finally {
     if (oldTmux === undefined) delete process.env.TMUX;
     else process.env.TMUX = oldTmux;
